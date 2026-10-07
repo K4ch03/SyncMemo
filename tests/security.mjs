@@ -14,10 +14,7 @@ await db.exec(
 );
 await db.query(
   "insert into auth.users values ($1,$2,now()),($3,$4,now()),($5,$6,now())",
-  [alice, "alice@example.com", bob, "bob@example.com", eve, "eve@example.com"],
-);
-await db.exec(
-  "insert into public.allowed_accounts values ('alice@example.com'),('bob@example.com');",
+  [alice, "alice@example.com", bob, "bob@example.com", eve, null],
 );
 async function asUser(id) {
   await db.exec("reset role");
@@ -36,10 +33,6 @@ async function save(title, rev) {
   ).rows[0];
 }
 await asUser(alice);
-assert.equal(
-  (await db.query("select public.is_allowed() as ok")).rows[0].ok,
-  true,
-);
 let row = await save("one", 0);
 assert.equal(row.revision, 1);
 row = await save("two", 1);
@@ -49,6 +42,14 @@ assert.equal(
   (await db.query("select title from public.notes")).rows[0].title,
   "two",
 );
+// Simulate the former restrictive policy, then migrate twice without losing notes.
+await db.exec("reset role;drop policy own_notes on public.notes;create policy own_notes on public.notes for all to authenticated using (false) with check (false);");
+const migration = await readFile(new URL("../supabase/migrations/20261007_public_login.sql", import.meta.url), "utf8");
+await db.exec(migration);
+await db.exec(migration);
+await asUser(alice);
+assert.equal((await db.query("select title,owner_id,revision from public.notes")).rows[0].title,"two");
+assert.equal((await db.query("select owner_id from public.notes")).rows[0].owner_id,alice);
 await asUser(bob);
 assert.equal((await db.query("select * from public.notes")).rows.length, 0);
 await assert.rejects(() => save("overwrite", 2), /CONFLICT/);
@@ -61,21 +62,11 @@ await assert.rejects(
   /row-level security/,
 );
 await asUser(eve);
-assert.equal(
-  (await db.query("select public.is_allowed() as ok")).rows[0].ok,
-  false,
-);
-await assert.rejects(
-  () =>
-    db.query("insert into public.notes(id) values($1)", [
-      "30000000-0000-4000-8000-000000000001",
-    ]),
-  /row-level security/,
-);
-await assert.rejects(
-  () => db.query("select * from public.allowed_accounts"),
-  /permission denied/,
-);
+// A new OAuth user without an allowlist entry (or email) can own notes.
+await db.query("insert into public.notes(id) values($1)", ["30000000-0000-4000-8000-000000000001"]);
+assert.equal((await db.query("select * from public.notes")).rows.length, 1);
+await assert.rejects(() => save("other user edit", 2), /CONFLICT/);
+await assert.rejects(() => db.query("select public.delete_note($1,$2)", [note, 2]), /CONFLICT/);
 await asUser(alice);
 await assert.rejects(
   () => db.query("select public.delete_note($1,$2)", [note, 1]),
@@ -89,6 +80,6 @@ await assert.rejects(
   /permission denied/,
 );
 console.log(
-  "PASS PostgreSQL: account allowlist, row isolation, stale save protection, stale delete protection, anonymous denial",
+  "PASS PostgreSQL: new user access, row isolation, stale save protection, stale delete protection, anonymous denial",
 );
 await db.close();

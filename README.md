@@ -1,90 +1,91 @@
-# 余白 — シンプルなメモ帳
+# 余白 — Google / X ログイン対応メモ帳
 
-Next.js / TypeScript / Tailwind CSS / Tiptap / Supabase。Vercelに公開できるWebアプリです。
+Next.js / TypeScript / Tailwind CSS / Tiptap / Supabase。Vercel用のプロジェクトです。
 
-## 実装した機能
+## 今回の更新を適用する（すでにVercelに公開している場合）
 
-- メモの作成・編集・削除、タイトル・本文、作成日時・更新日時
-- 自動保存、未保存状態とエラー表示、再試行
-- タイトル・本文のキーワード検索
-- 更新日時の新しい順／古い順、タイトルの昇順／降順
-- 選択した文字の太字・文字色・装飾解除、元に戻す／やり直す
-- ダークテーマ、PCでは2ペイン、スマホでは一覧と編集を切り替え
-- ゲストはIndexedDBに保存。ゲストのメモをサーバーに送信しません
-- Googleログイン後はSupabaseに保存、約5秒間隔と画面復帰時に同期
-- 許可したアカウント以外のデータ利用をDB側で拒否
-- ゲストメモのクラウドへのコピー（明示操作、ローカル原本を保持）
-- 同時編集時の更新番号チェック。競合時は上書きせず、別メモとして内容を保存可能
+1. このフォルダのコードでリポジトリのアプリを更新します。既存のVercel環境変数は維持してください。
+2. 旧版の `supabase/schema.sql` を実行済みなら、Supabase SQL Editorで **`supabase/migrations/20261007_public_login.sql` だけ**を実行します。新しいschema.sqlを重ねて実行しないでください。
+3. まだDBを作っていない場合は、新しい `supabase/schema.sql` を一度実行します。許可メールアドレスの登録は不要です。
+4. 下記のGoogle・X設定を行い、Vercelに再デプロイします。
 
-お気に入り、ゲーム専用機能はありません。
+移行SQLは既存メモと所有者を維持し、利用者の許可リスト制限だけを外します。誰でも登録できますが、各自が読み書きできるのは自分のメモだけです。旧版のallowed_accountsテーブルとis_allowed関数は互換性のため残り、新版では使いません。アプリのコードとDBポリシーを両方更新してください。
 
-## 最初に試す（ゲストのみ）
+## Googleログインの設定
 
-Node.js 22以上を用意し、このフォルダで実行します。
+1. Supabaseの Authentication → Sign In / Providers でGoogleを有効化します。
+2. Google Cloud ConsoleのGoogle Auth PlatformでOAuthクライアント（ウェブアプリケーション）を作ります。
+3. Google側のJavaScript生成元にVercelの本番URL、リダイレクトURIにSupabaseのGoogle設定画面のCallback URLを登録します。
+4. GoogleのClient ID / Client SecretをSupabaseのGoogle設定に入力して保存します。
+5. 他の人も利用できるように、Google Auth Platformの対象ユーザーをExternalにし、Audienceで本番公開します。Testingのままではテストユーザー登録が必要です。Googleから検証や追加設定を求められた場合はその案内に従ってください。
+6. 必要なスコープはopenid・email・profileです。
+
+## Xログインの設定（OAuth 2.0）
+
+1. https://developer.x.com/ の開発者ダッシュボードでProject / Appを用意します。
+2. アプリの User authentication settings を開き、OAuth 2.0のWeb Appとして設定します。
+3. Supabaseの Authentication → Sign In / Providers → **X / Twitter (OAuth 2.0)** のCallback URLをコピーします。
+4. X側で次の値を設定します。
+
+| Xの設定欄 | 値 |
+| --- | --- |
+| Type of App | Web App（サーバー側シークレットを使う種類） |
+| Callback URI / Redirect URL | Supabase画面からコピーした `https://PROJECT.supabase.co/auth/v1/callback` |
+| Website URL | Vercelの本番URL |
+| Request email from users | 有効（Supabase公式手順に従う） |
+| Terms of service URL / Privacy policy URL | 運営者が用意した実際の利用規約・プライバシーポリシーのURL |
+
+5. Keys and tokensでOAuth 2.0の **Client ID / Client Secret** を取得します。
+6. Supabaseの **X / Twitter (OAuth 2.0)** を有効にし、そのClient ID / Client Secretを入力・保存します。
+7. アプリの「ゲストモード」から「Xでログイン」を選んで確認します。
+
+コードのproviderは `x` です。旧方式の `twitter`（OAuth 1.0a）ではありません。API Key / API SecretやBearer Tokenではなく、OAuth 2.0のClient ID / Client Secretを使用してください。Client SecretはSupabaseだけに入力し、ブラウザ用の環境変数やGitHubには入れません。
+
+Xの開発者アカウント、利用規約・プライバシーポリシーのURLは運営者による準備が必要です。このプロジェクトにはそれらの法的文書を含めていません。Xダッシュボードで要求されるアクセス条件・設定も確認してください。
+
+## 共通の接続設定
+
+Supabaseの Authentication → URL Configuration で、Site URLとRedirect URLsにVercelの本番URLを登録します。例：`https://your-app.vercel.app`。公開URLが変わったら更新してください。
+
+Vercelの Settings → Environment Variables に登録し、再デプロイします。
+
+| 名前 | 値 |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase publishable keyまたはlegacy anon key |
+
+`service_role`やsecret keyは使いません。環境変数はビルド時に組み込まれます。Supabaseでは新規ユーザー登録を許可し、GoogleとXを有効にしてください。利用しないEmail認証や匿名認証は無効のままで構いません。ゲスト機能はSupabase匿名認証を使いません。
+
+## ログイン方法とメモの関係
+
+PC・スマホでは同じログイン方法・同じアカウントを使ってください。
+
+GoogleとXが同じ確認済みメールアドレスを返す場合、Supabaseによって同一ユーザーに自動連携されることがあります。メールアドレスが異なるなどの場合は別のユーザー・別のメモ帳になるため、ログイン方法を切り替えれば必ず同じメモが表示されるわけではありません。この版では既存アカウントの手動統合は提供していません。
+
+## 機能
+
+- メモの新規作成・編集・削除、タイトル・本文、作成日時・更新日時
+- 自動保存、保存状態・エラー表示、再試行
+- タイトル・本文の検索、更新日時／タイトルの昇順・降順
+- 選択文字の太字・文字色変更・装飾解除、元に戻す／やり直す
+- PCの2ペイン、スマホの一覧／編集切り替え、ダークテーマ
+- ゲストはIndexedDB保存。ゲストの本文はサーバーに送信しません
+- Google / Xログインはクラウド保存。約5秒間隔と画面復帰時に同期
+- ゲストメモのクラウドへのコピー（操作時のみ、ローカル原本保持）
+- 同時編集の競合を検出し、古い内容での上書きを防止
+
+ゲストのメモは端末・ブラウザ・サイトのオリジンごとに別です。サイトデータ削除などで失われます。クラウド保存に失敗した変更は再試行できますが、保存前にページを閉じると失われます（閉じる前に警告）。完全なオフラインアプリ／PWAではありません。
+
+## ローカル起動
+
+Node.js 22以上を用意します。
 
 ```sh
 npm ci
 npm run dev
 ```
 
-ブラウザで http://localhost:3000 を開きます。環境変数なしでゲスト機能が使えます。
-
-ゲストデータはURLのオリジン・端末・ブラウザごとに分かれます。ローカルで書いたメモはVercelのURLへ自動では引き継がれません。サイトデータの消去、プライベートブラウズ終了、ブラウザの保存領域整理などで消える場合があります。
-
-## Vercelで公開する
-
-### ゲスト版を先に公開
-
-1. このフォルダの内容を自分のGitHubリポジトリへアップロードします。`.env.local`、`node_modules`、`.next`は含めません。
-2. https://vercel.com/new を開き、リポジトリをImportします。
-3. Framework PresetはNext.js。`package.json`のあるフォルダをRoot Directoryにします。
-4. 環境変数なしでDeployできます。発行されたURLでゲスト版が動きます。
-
-GitHubを使わず、Vercel CLIで公開する場合は、このフォルダで `npx vercel` を実行してアカウント認証と案内に従い、確認後 `npx vercel --prod` を実行します。実行に伴うサービス側の料金・プラン確認はVercel画面で行ってください。
-
-### Googleログインとクラウド保存を有効にする
-
-1. https://supabase.com/dashboard でプロジェクトを作成します。
-2. SQL Editorで `supabase/schema.sql` 全体を一度実行します。
-3. 続けて、利用するGoogleアカウントを登録します（小文字で指定）。
-
-```sql
-insert into public.allowed_accounts(email) values ('自分のメールアドレス');
-```
-
-4. SupabaseのAuthentication → ProvidersでGoogleを有効にします。Emailなど使わないログイン方式は無効にしてください。
-5. https://console.cloud.google.com/ でGoogle Auth PlatformのアプリとOAuthクライアント（ウェブアプリケーション）を作成します。テスト公開ならAudienceのテストユーザーに自分を追加します。スコープはopenid・email・profileだけで十分です。
-6. Google側の「承認済みのJavaScript生成元」にVercelの公開URL、「承認済みのリダイレクトURI」にSupabaseのGoogle設定画面に表示されるコールバックURL（`https://PROJECT.supabase.co/auth/v1/callback`）を登録します。
-7. Googleで発行したClient IDとClient Secretを**SupabaseのGoogle設定画面**に入力して保存します。Client Secretはこのアプリやチャットへ貼る必要はありません。
-8. SupabaseのAuthentication → URL ConfigurationでSite URLとRedirect URLsにVercelの公開URLを設定します。ローカルで試す場合だけ `http://localhost:3000` も追加します。
-9. VercelのProject Settings → Environment Variablesに下記を登録します。
-
-| 名前                            | 値                                             |
-| ------------------------------- | ---------------------------------------------- |
-| `NEXT_PUBLIC_SUPABASE_URL`      | Supabase Project URL                           |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabaseのpublishable keyまたはlegacy anon key |
-
-`service_role`キーやsecret keyは使いません。ブラウザ向けのキーは公開されるため、同梱SQLのRLSと許可アカウント設定が必要です。
-
-10. VercelでRedeployします。これらの変数はビルド時に組み込まれます。
-11. アプリ左下の「ゲストモード」から「Googleでログイン」を選びます。許可したGoogleアカウントでログインします。
-12. ゲストメモがあれば、左下のアカウント画面から「クラウドにコピー」を押します。既に同じIDがあるメモは再コピーせず、既存のクラウドメモを維持します。
-
-PCとスマホで同じ公開URLとGoogleアカウントを使ってください。端末ごとに「保存しました」を確認してから切り替えるとスムーズです。
-
-## ローカルでクラウド接続を試す
-
-`.env.example` を `.env.local` にコピーし、上記2つの値を入力してから `npm run dev` で起動します。ゲスト保存とクラウド保存は分離しています。オフライン中のクラウド編集はメモリ上で保持し、再試行できますが、保存前にページを閉じると失われます（閉じる前に警告）。完全なオフラインアプリ／PWAではありません。
-
-## 構造
-
-- `app/page.tsx`: 一覧、リッチテキスト編集、アカウント、保存と同期
-- `app/globals.css`: PC・スマホのレイアウト
-- `lib/store.ts`: IndexedDBとSupabaseの読み書き
-- `supabase/schema.sql`: テーブル、RLS、アカウント制限、競合チェック付き保存・削除
-- `tests/`: 保存の往復テストとPostgreSQLでの権限・競合テスト
-
-本文はHTMLではなくTiptap JSONで保存します。検索用にプレーンテキストも保持します。アカウント制限はクライアントの表示だけでなく、DBのポリシーでも検証します。Google認証自体を終えた未許可ユーザーもメモデータへアクセスできません。
+http://localhost:3000 を開きます。環境変数なしでゲスト版が動きます。クラウドを試す場合は `.env.example` を `.env.local` にコピーして値を入力し、SupabaseのRedirect URLsにもローカルURLを追加します。
 
 ## 検証
 
@@ -93,21 +94,13 @@ npm test
 npm run build
 ```
 
-IndexedDBのCRUDと文字装飾の保持、PostgreSQL互換のPGliteで所有者分離・未許可アカウント拒否・匿名拒否・古い更新番号による保存／削除の拒否を検証します。
+IndexedDBのCRUD・装飾保持と、PostgreSQL互換のPGliteで新規ユーザーの利用、他ユーザーの読み書き拒否、匿名拒否、編集競合、移行SQLの繰り返し実行・既存メモ保持を検証します。
 
-実際のGoogle OAuth、Supabaseの実プロジェクト、Vercel公開、PC／スマートフォン実ブラウザでの操作は、外部アカウントを設定した後に確認が必要です。WebMCP対応ブラウザでは検索ツールを公開しますが、対応環境での動作は未検証です。
-
-## 公開後の確認
-
-- ゲストでメモを作り、タイトル・本文・太字・文字色が再読み込み後も残る
-- 検索、4種類の並び替え、削除確認が機能する
-- PCとスマホの同じGoogleアカウントで同じメモを閲覧できる
-- 他の未許可アカウントではクラウドメモを閲覧・変更できない
-- 同じメモを両端末で編集すると古い内容の上書きを拒否する
-- ゲストからのコピーを再実行しても同じメモが重複しない
+Google / Xの実OAuth接続、Supabase実プロジェクト、Vercel公開、実機ブラウザの操作確認は外部設定後に必要です。これらを設定済み・検証済みとはしていません。
 
 ## 公式資料
 
-- https://vercel.com/docs/frameworks/full-stack/nextjs
 - https://supabase.com/docs/guides/auth/social-login/auth-google
-- https://supabase.com/docs/guides/database/postgres/row-level-security
+- https://supabase.com/docs/guides/auth/social-login/auth-twitter
+- https://supabase.com/docs/guides/auth/auth-identity-linking
+- https://vercel.com/docs/frameworks/full-stack/nextjs

@@ -1,12 +1,4 @@
--- Run once in Supabase SQL Editor. Then add your email to allowed_accounts below.
-create table public.allowed_accounts (email text primary key check (email=lower(email)));
-alter table public.allowed_accounts enable row level security;
-revoke all on public.allowed_accounts from anon, authenticated;
-create or replace function public.is_allowed() returns boolean language sql stable security definer set search_path = '' as $$
- select exists(select 1 from public.allowed_accounts a join auth.users u on lower(u.email)=a.email where u.id=auth.uid() and u.email_confirmed_at is not null);
-$$;
-revoke all on function public.is_allowed() from public;
-grant execute on function public.is_allowed() to authenticated;
+-- New installations only. Existing installations: run migrations/20261007_public_login.sql.
 create table public.notes (
  id uuid primary key,
  owner_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
@@ -20,8 +12,8 @@ create table public.notes (
 create index notes_owner_updated on public.notes(owner_id,updated_at desc);
 alter table public.notes enable row level security;
 create policy own_notes on public.notes for all to authenticated
- using ((select auth.uid())=owner_id and (select public.is_allowed()))
- with check ((select auth.uid())=owner_id and (select public.is_allowed()));
+ using ((select auth.uid())=owner_id)
+ with check ((select auth.uid())=owner_id);
 revoke all on public.notes from anon;
 grant select,insert,update,delete on public.notes to authenticated;
 create or replace function public.save_note(note_id uuid,note_title text,note_body jsonb,note_text text,expected_revision integer)
@@ -49,5 +41,3 @@ revoke all on function public.save_note(uuid,text,jsonb,text,integer) from publi
 revoke all on function public.delete_note(uuid,integer) from public;
 grant execute on function public.save_note(uuid,text,jsonb,text,integer) to authenticated;
 grant execute on function public.delete_note(uuid,integer) to authenticated;
--- Replace with your Google account email, then execute separately:
--- insert into public.allowed_accounts(email) values ('you@example.com');

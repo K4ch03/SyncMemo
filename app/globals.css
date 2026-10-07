@@ -785,3 +785,8 @@ button svg {
     font-size: 23px;
   }
 }
+
+.login-options { display: grid; gap: 12px; margin-top: 22px; }
+.login-options .primary, .login-options .secondary { width: 100%; }
+.login-options .login-help { font-size: 12px; margin: 2px 0 0; }
+.modal .auth-error { color: #ffb7a8; padding: 10px; background: #432d28; border-radius: 6px; }

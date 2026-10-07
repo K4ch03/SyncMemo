@@ -212,14 +212,9 @@ export default function Page() {
         const session = sessionResult?.data.session ?? null;
         let data: Note[];
         if (session) {
-          const { data: allowed, error: e } = await cloud!.rpc("is_allowed");
-          if (e || !allowed) {
-            await cloud!.auth.signOut();
-            throw new Error("このGoogleアカウントは利用を許可されていません。");
-          }
           data = await remoteAll();
           if (!alive) return;
-          setEmail(session.user.email || "");
+          setEmail(session.user.email || session.user.user_metadata?.user_name || "ログイン中");
           setMode("cloud");
           setGuestCount(
             (await local.all()).filter((g) => !data.some((n) => n.id === g.id))
@@ -472,19 +467,18 @@ export default function Page() {
     for (const id of pending.current.keys()) await save(id);
     return pending.current.size === 0;
   }
-  async function login() {
+  async function login(provider: "google" | "x") {
     if (!cloud) {
       setAccount(true);
       return;
     }
     if (!(await flush())) return;
     setBusy(true);
-    const { error: e } = await cloud.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin },
-    });
-    if (e) {
-      setError(e.message);
+    try {
+      const { error: e } = await cloud.auth.signInWithOAuth({provider, options: {redirectTo: window.location.origin}});
+      if (e) throw e;
+    } catch (e) {
+      setError(message(e));
       setBusy(false);
     }
   }
@@ -820,6 +814,7 @@ export default function Page() {
             >
               <X size={20} />
             </button>
+            {error && <p className="auth-error" role="alert">{error}</p>}
             <div className="modal-icon">
               {mode === "cloud" ? <Cloud /> : <HardDrive />}
             </div>
@@ -860,16 +855,14 @@ export default function Page() {
             ) : (
               <>
                 {cloud ? (
-                  <button
-                    className="primary"
-                    onClick={() => void login()}
-                    disabled={busy}
-                  >
-                    Googleでログイン
-                  </button>
+                  <div className="login-options">
+                    <button className="primary" onClick={() => void login("google")} disabled={busy}>Googleでログイン</button>
+                    <button className="secondary" onClick={() => void login("x")} disabled={busy}>Xでログイン</button>
+                    <p className="login-help">スマホとPCでは、同じログイン方法・アカウントを使ってください。</p>
+                  </div>
                 ) : (
                   <div className="setup-notice">
-                    Googleログインはまだ設定されていません。現在はゲストモードで利用できます。
+                    外部アカウントでのログインはまだ設定されていません。現在はゲストモードで利用できます。
                   </div>
                 )}
                 <button
