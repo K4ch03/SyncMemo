@@ -109,7 +109,6 @@ export default function NoteList(props: Props) {
          <ChevronRight size={14} className={expanded.has(f.id)?'expanded':''}/><FolderIcon size={16}/><span>{f.name}</span>
        </button>
        <button aria-label={`${f.name}にメモを追加`} disabled={props.disabled} onClick={()=>{setExpanded(old=>new Set([...old,f.id]));props.onAdd(f.id);}}><Plus size={13}/></button>
-       <button aria-label={`${f.name}の名前を変更`} disabled={props.disabled} onClick={()=>props.onFolder(f)}><Pencil size={13}/></button>
        <button data-folder-menu aria-label={`${f.name}のメニュー`} aria-expanded={menu===f.id} disabled={props.disabled} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setMenuPosition({left:Math.max(8,Math.min(r.right-264,window.innerWidth-272)),top:Math.max(8,Math.min(r.bottom+4,window.innerHeight-355))});setPreview(null);setMenu(menu===f.id?null:f.id);}}><MoreHorizontal size={15}/></button>
      </div>
      {expanded.has(f.id) && <div className="folder-notes">{props.notes.filter(n=>n.folder_id===f.id).map(card)}{!props.notes.some(n=>n.folder_id===f.id)&&<p className="folder-empty">メモをここにドロップ</p>}</div>}
@@ -119,6 +118,7 @@ export default function NoteList(props: Props) {
  </nav>
  {menu && props.folders.some(f=>f.id===menu) && <div ref={panel} className="folder-menu-panel" role="dialog" aria-label="フォルダの設定" style={menuPosition}>
  <FolderColor key={menu} color={colorOf(props.folders.find(f=>f.id===menu)!)??null} disabled={props.disabled} onPreview={color=>setPreview({id:menu,color})} onSave={color=>{props.onColor(props.folders.find(f=>f.id===menu)!,color);setPreview(null);}}/>
+ <button className="folder-rename" disabled={props.disabled} onClick={()=>{props.onFolder(props.folders.find(f=>f.id===menu)!);setMenu(null);setPreview(null);}}><Pencil size={15}/>フォルダ名変更</button>
  <button className="folder-delete" disabled={props.disabled} onClick={()=>{props.onDeleteFolder(props.folders.find(f=>f.id===menu)!);setMenu(null);setPreview(null);}}><Trash2 size={15}/>フォルダを削除</button>
  </div>}
  {drag && drag.x!==0 && <div className="drag-preview" style={{left:drag.x+12,top:drag.y-38}}>{props.notes.find(n=>n.id===drag.id)?.title || '無題のメモ'}</div>}

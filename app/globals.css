@@ -932,3 +932,6 @@ button svg {
  .header-updated { white-space:normal; line-height:1.2; }
  .header-warning .guest-warning-popup { position:fixed; top:45px; left:12px; right:12px; width:auto; max-width:none; }
 }
+.folder-rename { display:flex; align-items:center; gap:8px; width:100%; padding:9px 0; border-top:1px solid var(--line); font-size:13px; }
+.folder-name-field { display:block; margin:20px 0; font-size:13px; }
+.folder-name-field input { display:block; width:100%; margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:6px; color:var(--text); background:var(--bg); font-size:16px; }

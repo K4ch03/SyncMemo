@@ -261,6 +261,11 @@ export default function Page() {
   }
   function backToList() {if(window.history.state?.syncMemoNote)window.history.back();else setMobile(false);}
 
+  const [folderDialog,setFolderDialog]=useState<{kind:"create"|"rename"|"delete";folder?:Folder}|null>(null);
+  const [folderName,setFolderName]=useState("");
+  const [folderError,setFolderError]=useState("");
+  const folderSubmitting=useRef(false);
+  function showFolderDialog(kind:"create"|"rename"|"delete",folder?:Folder){setFolderName(folder?.name || "新しいフォルダ");setFolderError("");setFolderDialog({kind,folder});}
   const [account, setAccount] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -432,13 +437,14 @@ export default function Page() {
   }, [mode, busy]);
 
   useEffect(() => {
-    if (!account && !deleting) return;
+    if (!account && !deleting && !folderDialog) return;
     const previous = document.activeElement as HTMLElement | null;
     const dialog = document.querySelector<HTMLElement>('[aria-modal="true"]');
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !busy) {
         setAccount(false);
         setDeleting(false);
+        setFolderDialog(null);
       }
       if (event.key === "Tab" && dialog) {
         const items = Array.from(
@@ -471,7 +477,7 @@ export default function Page() {
       document.removeEventListener("keydown", onKey);
       previous?.focus();
     };
-  }, [account, deleting, busy]);
+  }, [account, deleting, folderDialog, busy]);
   const note = notes.find((n) => n.id === selected);
   const list = [...notes]
     .sort((a, b) => {
@@ -535,7 +541,7 @@ export default function Page() {
       setSelected(null);
       backToList();
       setDeleting(false);
-      setStatus("削除しました");
+      setStatus("");
     } catch (e) {
       setError(message(e));
     } finally {
@@ -607,9 +613,10 @@ export default function Page() {
     }catch(e){setFolders(prev=>prev.map(f=>f.id===folder.id?folder:f));setError(message(e));}finally{setBusy(false);}
   }
   async function editFolder(folder?: Folder) {
-    const name = window.prompt(folder ? "フォルダ名を変更" : "フォルダ名",folder?.name || "新しいフォルダ")?.trim();
-    if(!name) return;
-    if(name.length>100){setError("フォルダ名は100文字以内にしてください。");return;}
+    const name = folderName.trim();
+    if(!name || name.length>100){setFolderError("フォルダ名を1〜100文字で入力してください。");return;}
+    if(folderSubmitting.current)return;
+    folderSubmitting.current=true;
     setBusy(true);
     try {
       const f:Folder = folder ? {...folder,name} : {id:crypto.randomUUID(),name,created_at:new Date().toISOString()};
@@ -618,22 +625,23 @@ export default function Page() {
         if(result.error) throw result.error;
       } else await local.putFolder(f);
       setFolders(prev=>[...prev.filter(x=>x.id!==f.id),f]);
-      setError("");
-    } catch(e){setError(message(e));} finally{setBusy(false);}
+      setError("");setFolderDialog(null);
+    } catch(e){setFolderError(message(e));} finally{setBusy(false);folderSubmitting.current=false;}
   }
   async function deleteFolder(folder:Folder) {
-    if(!window.confirm(`「${folder.name}」を削除しますか？中のメモはフォルダ外に戻ります。`))return;
+    if(folderSubmitting.current)return;
+    folderSubmitting.current=true;
     setBusy(true);
     try {
-      if(!(await flush()))return;
+      if(!(await flush())){setFolderError("未保存のメモがあります。保存を完了してから再試行してください。");return;}
       if(mode === "cloud") {
         const {error:e}=await cloud!.from("folders").delete().eq("id",folder.id);if(e)throw e;
         apply(await remoteAll());
       } else {
         await local.removeFolder(folder.id);apply(await local.all());
       }
-      setFolders(prev=>prev.filter(x=>x.id!==folder.id));setError("");
-    }catch(e){setError(message(e));}finally{setBusy(false);}
+      setFolders(prev=>prev.filter(x=>x.id!==folder.id));setError("");setFolderDialog(null);
+    }catch(e){setFolderError(message(e));}finally{setBusy(false);folderSubmitting.current=false;}
   }
   function moveNote(id:string,folder:string|null) {
     if(busy)return;
@@ -659,7 +667,6 @@ export default function Page() {
                   {mode === "cloud" ? <Cloud size={18}/> : <HardDrive size={18}/>}
                   {mode === "cloud" ? "アカウント" : "ゲストモード"}
                 </button>
-                <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={() => {if (menuRef.current) menuRef.current.open = false;}}>プライバシーポリシー</a>
               </div>
             </details>
             <select aria-label="メモの並び替え" value={sort} onChange={(e) => changeSort(e.target.value)}>
@@ -670,11 +677,11 @@ export default function Page() {
             </select>
             <div className="add-menu" onKeyDown={e=>{if(e.key === "Escape")setAdding(false);}}>
               <button className="add-icon" aria-label="メモまたはフォルダを追加" aria-expanded={adding} onClick={()=>setAdding(v=>!v)} disabled={mode === "loading" || busy}><Plus size={22}/></button>
-              {adding && <><button className="add-menu-dismiss" aria-label="追加メニューを閉じる" onClick={()=>setAdding(false)}/><div className="app-menu-panel"><button onClick={()=>{setAdding(false);add();}}>メモを追加</button><button onClick={()=>{setAdding(false);void editFolder();}}>フォルダを追加</button></div></>}
+              {adding && <><button className="add-menu-dismiss" aria-label="追加メニューを閉じる" onClick={()=>setAdding(false)}/><div className="app-menu-panel"><button onClick={()=>{setAdding(false);add();}}>メモを追加</button><button onClick={()=>{setAdding(false);showFolderDialog("create");}}>フォルダを追加</button></div></>}
             </div>
           </div>
           {error && <div className="sidebar-error" role="alert">{error}</div>}
-          {mode === "loading" ? <p className="list-empty">読み込み中…</p> : <NoteList notes={list} folders={folders} selected={selected} disabled={busy} onAdd={add} onColor={(f,color)=>void setFolderColor(f,color)} onOpen={id=>{setSelected(id);openEditor(id);}} onFolder={f=>void editFolder(f)} onDeleteFolder={f=>void deleteFolder(f)} onMove={moveNote}/>}
+          {mode === "loading" ? <p className="list-empty">読み込み中…</p> : <NoteList notes={list} folders={folders} selected={selected} disabled={busy} onAdd={add} onColor={(f,color)=>void setFolderColor(f,color)} onOpen={id=>{setSelected(id);openEditor(id);}} onFolder={f=>showFolderDialog(f?"rename":"create",f)} onDeleteFolder={f=>showFolderDialog("delete",f)} onMove={moveNote}/>}
 
         </div>
         {mode === "guest" && <div className="sidebar-warning"><GuestWarning/></div>}
@@ -777,6 +784,19 @@ export default function Page() {
           </div>
         )}
       </main>
+      {folderDialog && <div className="modal-backdrop">
+        <section className="modal" role={folderDialog.kind === "delete" ? "alertdialog" : "dialog"} aria-modal="true" aria-labelledby="folder-dialog-title">
+          <form onSubmit={e=>{e.preventDefault();if(busy)return;if(folderDialog.kind === "delete")void deleteFolder(folderDialog.folder!);else void editFolder(folderDialog.folder);}}>
+            <h2 id="folder-dialog-title">{folderDialog.kind === "create" ? "フォルダを作成" : folderDialog.kind === "rename" ? "フォルダ名変更" : "フォルダを削除しますか？"}</h2>
+            {folderDialog.kind === "delete" ? <p>「{folderDialog.folder?.name}」を削除します。中のメモは削除せず、フォルダ外に戻します。</p> : <label className="folder-name-field">フォルダ名<input autoFocus value={folderName} maxLength={100} disabled={busy} onChange={e=>setFolderName(e.target.value)} onFocus={e=>e.target.select()} aria-describedby={folderError?"folder-dialog-error":undefined}/></label>}
+            {folderError && <p id="folder-dialog-error" className="auth-error" role="alert">{folderError}</p>}
+            <div className="modal-actions">
+              <button type="button" className="secondary" autoFocus={folderDialog.kind === "delete"} disabled={busy} onClick={()=>setFolderDialog(null)}>キャンセル</button>
+              <button type="submit" className={folderDialog.kind === "delete" ? "danger" : "primary"} disabled={busy || (folderDialog.kind !== "delete" && !folderName.trim())}>{busy ? "処理中…" : folderDialog.kind === "delete" ? "削除する" : folderDialog.kind === "create" ? "作成" : "保存"}</button>
+            </div>
+          </form>
+        </section>
+      </div>}
       {account && (
         <div className="modal-backdrop" onClick={() => setAccount(false)}>
           <section
@@ -836,7 +856,6 @@ export default function Page() {
               <>
                 {cloud ? (
                   <div className="login-options">
-                    <a className="privacy-link" href="/privacy" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
                     <button className="primary" onClick={() => void login()} disabled={busy}>Googleでログイン</button>
                   </div>
                 ) : (
