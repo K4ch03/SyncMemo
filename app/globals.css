@@ -935,3 +935,6 @@ button svg {
 .folder-rename { display:flex; align-items:center; gap:8px; width:100%; padding:9px 0; border-top:1px solid var(--line); font-size:13px; }
 .folder-name-field { display:block; margin:20px 0; font-size:13px; }
 .folder-name-field input { display:block; width:100%; margin-top:8px; padding:10px 12px; border:1px solid var(--line); border-radius:6px; color:var(--text); background:var(--bg); font-size:16px; }
+.folder-inline-wrap { display:flex; align-items:center; gap:7px; flex:1; min-width:0; padding-left:5px; }
+.folder-inline-wrap svg { flex-shrink:0; }
+.folder-name-inline { width:100%; min-width:0; height:24px; padding:0 4px; border:1px solid var(--accent); border-radius:3px; background:var(--bg); color:var(--text); font-size:16px; }

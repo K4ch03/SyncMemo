@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, Folder as FolderIcon, Plus, Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import InlineFolderName from "./InlineFolderName";
 import FolderColor, {foreground} from "./FolderColor";
 import type { Folder, Note } from "@/lib/store";
 
@@ -8,7 +9,8 @@ type Props = {
  notes: Note[]; folders: Folder[]; selected: string | null; disabled: boolean;
  onOpen: (id: string) => void; onAdd: (folder?: string) => void;
  onColor: (folder: Folder, color: string | null) => void;
- onFolder: (folder?: Folder) => void; onDeleteFolder: (folder: Folder) => void;
+ editingFolderId:string|null; onRename:(folder:Folder,name:string)=>void; onCancelRename:()=>void;
+ onFolder: (folder: Folder) => void; onDeleteFolder: (folder: Folder) => void;
  onMove: (id: string, folder: string | null) => void;
 };
 export default function NoteList(props: Props) {
@@ -105,9 +107,11 @@ export default function NoteList(props: Props) {
    {(props.folders.length>0 || drag) && <button {...drop('')} className={`root-drop ${target===''?'drop-active':''}`} onClick={()=>{if(dragId.current){destination.current='';finish();}}}>フォルダ外</button>}
    {[...props.folders].sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true})).map(f=><section key={f.id} style={colorOf(f)?{background:colorOf(f)!,color:foreground(colorOf(f)!)}:undefined} className={`folder-block ${colorOf(f)?"has-folder-color":""} ${target===f.id?'drop-active':''}`} {...drop(f.id)}>
      <div className="folder-row">
+       {props.editingFolderId===f.id ? <div className="folder-inline-wrap"><FolderIcon size={16}/><InlineFolderName name={f.name} onCommit={name=>props.onRename(f,name)} onCancel={props.onCancelRename}/></div> : <>
        <button className="folder-toggle" aria-expanded={expanded.has(f.id)} onClick={()=>{if(dragId.current){destination.current=f.id;finish();return;}setExpanded(old=>{const next=new Set(old);if(next.has(f.id))next.delete(f.id);else next.add(f.id);return next;});}}>
          <ChevronRight size={14} className={expanded.has(f.id)?'expanded':''}/><FolderIcon size={16}/><span>{f.name}</span>
        </button>
+       </>}
        <button aria-label={`${f.name}にメモを追加`} disabled={props.disabled} onClick={()=>{setExpanded(old=>new Set([...old,f.id]));props.onAdd(f.id);}}><Plus size={13}/></button>
        <button data-folder-menu aria-label={`${f.name}のメニュー`} aria-expanded={menu===f.id} disabled={props.disabled} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setMenuPosition({left:Math.max(8,Math.min(r.right-264,window.innerWidth-272)),top:Math.max(8,Math.min(r.bottom+4,window.innerHeight-355))});setPreview(null);setMenu(menu===f.id?null:f.id);}}><MoreHorizontal size={15}/></button>
      </div>
