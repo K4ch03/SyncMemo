@@ -19,7 +19,6 @@ async function main() {
               text: "大切なこと",
               marks: [
                 { type: "bold" },
-                { type: "italic" },
                 { type: "strike" },
                 { type: "underline" },
                 { type: "textStyle", attrs: { color: "#ff9393", backgroundColor: "#344d2c", fontSize: "24px" } },
@@ -31,10 +30,10 @@ async function main() {
     },
     plain_text: "大切なこと",
   };
-  const schema = getSchema([StarterKit,TextStyle,Color,BackgroundColor,FontSize]);
+  const schema = getSchema([StarterKit.configure({italic:false}),TextStyle,Color,BackgroundColor,FontSize]);
   const roundtrip = schema.nodeFromJSON(n.body).toJSON();
   const marks = roundtrip.content[0].content[0].marks;
-  for (const mark of ["bold","italic","strike","underline","textStyle"]) assert.ok(marks.some((m: {type:string}) => m.type === mark));
+  for (const mark of ["bold","strike","underline","textStyle"]) assert.ok(marks.some((m: {type:string}) => m.type === mark));
   assert.equal(marks.find((m: {type:string})=>m.type === "textStyle").attrs.fontSize,"24px");
   assert.equal(marks.find((m: {type:string})=>m.type === "textStyle").attrs.backgroundColor,"#344d2c");
   await local.put(n);

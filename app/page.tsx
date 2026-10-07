@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   Trash2,
   Bold,
-  Italic,
   Strikethrough,
   Underline,
   RemoveFormatting,
@@ -78,6 +77,7 @@ function Composer({
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
+        italic: false,
         heading: false,
         blockquote: false,
         codeBlock: false,
@@ -120,7 +120,24 @@ function Composer({
   }, [editor, note.body]);
   return (
     <>
+      <div className="toolbar-shell">
       <div className="toolbar" onMouseDown={e => { if ((e.target as HTMLElement).closest("button")) e.preventDefault(); }}>
+        <div className="tool-group">
+          <button
+            aria-label="元に戻す"
+            disabled={!editor?.can().undo()}
+            onClick={() => editor?.chain().focus().undo().run()}
+          >
+            <Undo2 size={17} />
+          </button>
+          <button
+            aria-label="やり直す"
+            disabled={!editor?.can().redo()}
+            onClick={() => editor?.chain().focus().redo().run()}
+          >
+            <Redo2 size={17} />
+          </button>
+        </div>
         <div className="tool-group">
           <button
             aria-label="太字"
@@ -130,7 +147,6 @@ function Composer({
           >
             <Bold size={18} />
           </button>
-          <button aria-label="斜体" title="斜体" aria-pressed={editor?.isActive("italic") ?? false} className={editor?.isActive("italic") ? "active" : ""} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={18}/></button>
           <button aria-label="取り消し線" title="取り消し線" aria-pressed={editor?.isActive("strike") ?? false} className={editor?.isActive("strike") ? "active" : ""} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough size={18}/></button>
           <button aria-label="下線" title="下線" aria-pressed={editor?.isActive("underline") ?? false} className={editor?.isActive("underline") ? "active" : ""} onClick={() => editor?.chain().focus().toggleUnderline().run()}><Underline size={18}/></button>
           <div className="color-wrap">
@@ -150,6 +166,29 @@ function Composer({
               </span>
               <ChevronDown size={12} />
             </button>
+
+          </div>
+          <div className="color-wrap">
+            <button aria-label="背景色" title="背景色" aria-expanded={palette === "background"} onClick={() => setPalette(palette === "background" ? null : "background")}><span className="background-a">A</span><ChevronDown size={12}/></button>
+
+          </div>
+          <button
+            aria-label="文字の装飾を解除"
+            onClick={() => editor?.chain().focus().unsetAllMarks().run()}
+          >
+            <RemoveFormatting size={18} />
+          </button>
+        </div>
+        <label className="editor-select">
+          <select aria-label="文字サイズ" value={editor?.getAttributes("textStyle").fontSize || ""} onChange={e => {if(e.target.value)editor?.chain().focus().setFontSize(e.target.value).run();else editor?.chain().focus().unsetFontSize().run();}}>
+            <option value="">標準</option>{[12,14,16,18,20,24,28,32,40,48].map(n => <option key={n} value={`${n}px`}>{n}px</option>)}
+          </select>
+        </label>
+        <label className="editor-select">
+          <select aria-label="表示倍率" value={scale} onChange={e => onScale(Number(e.target.value))}>{[150,125,100,90,70,50].map(n => <option key={n} value={n}>{n}%</option>)}</select>
+        </label>
+
+      </div>
             {palette === "color" && (
               <div className="palette" role="group" aria-label="文字色を選ぶ">
                 {colors.map(([name, color]) => (
@@ -167,42 +206,7 @@ function Composer({
                 ))}
               </div>
             )}
-          </div>
-          <div className="color-wrap">
-            <button aria-label="背景色" title="背景色" aria-expanded={palette === "background"} onClick={() => setPalette(palette === "background" ? null : "background")}><span className="background-a">A</span><ChevronDown size={12}/></button>
             {palette === "background" && <div className="palette background-palette" role="group" aria-label="背景色を選ぶ">{[["なし",""],["赤","#673b42"],["橙","#65462d"],["黄","#615522"],["緑","#344d2c"],["青","#2c4365"],["紫","#503b66"]].map(([name,color]) => <button key={name} aria-label={`背景色：${name}`} title={name} style={{background:color || "#e6e8e5"}} onClick={() => {if(color)editor?.chain().focus().setBackgroundColor(color).run();else editor?.chain().focus().unsetBackgroundColor().run();setPalette(null);}} />)}</div>}
-          </div>
-          <button
-            aria-label="文字の装飾を解除"
-            onClick={() => editor?.chain().focus().unsetAllMarks().run()}
-          >
-            <RemoveFormatting size={18} />
-          </button>
-        </div>
-        <label className="editor-select">文字サイズ
-          <select aria-label="文字サイズ" value={editor?.getAttributes("textStyle").fontSize || ""} onChange={e => {if(e.target.value)editor?.chain().focus().setFontSize(e.target.value).run();else editor?.chain().focus().unsetFontSize().run();}}>
-            <option value="">標準</option>{[12,14,16,18,20,24,28,32,40,48].map(n => <option key={n} value={`${n}px`}>{n}px</option>)}
-          </select>
-        </label>
-        <label className="editor-select">表示倍率
-          <select aria-label="表示倍率" value={scale} onChange={e => onScale(Number(e.target.value))}>{[150,125,100,90,70,50].map(n => <option key={n} value={n}>{n}%</option>)}</select>
-        </label>
-        <div className="tool-group">
-          <button
-            aria-label="元に戻す"
-            disabled={!editor?.can().undo()}
-            onClick={() => editor?.chain().focus().undo().run()}
-          >
-            <Undo2 size={17} />
-          </button>
-          <button
-            aria-label="やり直す"
-            disabled={!editor?.can().redo()}
-            onClick={() => editor?.chain().focus().redo().run()}
-          >
-            <Redo2 size={17} />
-          </button>
-        </div>
       </div>
       <div className="body-wrap">
         <EditorContent editor={editor} style={{zoom: scale / 100}} />

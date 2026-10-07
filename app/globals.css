@@ -864,3 +864,13 @@ button svg {
   .toolbar .tool-group button { min-width: 33px; height: 36px; }
   .background-palette { left: -165px; right: auto; }
 }
+
+.toolbar-shell { position: relative; flex-shrink: 0; }
+.toolbar { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; padding: 1px 0; gap: 6px; scrollbar-width: thin; scrollbar-color: #58644f transparent; }
+.toolbar > * { flex-shrink: 0; }
+.toolbar .tool-group { flex-wrap: nowrap; }
+.toolbar-shell > .palette { top: calc(100% + 4px); left: 0; right: auto; max-width: 100%; flex-wrap: wrap; }
+.body-wrap { padding-top: 4px; }
+.placeholder { top: 4px; }
+.prose-editor { padding-bottom: 16px; }
+@media(max-width:700px) { .toolbar { padding-top: 1px; padding-bottom: 1px; } }
