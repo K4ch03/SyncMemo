@@ -1,5 +1,6 @@
 "use client";
 import NoteList from "./NoteList";
+import { incomingDocument } from "@/lib/editor-sync";
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -115,11 +116,15 @@ function Composer({
     };
   }, [editor]);
   useEffect(() => {
-    if (
-      editor &&
-      JSON.stringify(editor.getJSON()) !== JSON.stringify(note.body)
-    )
-      editor.commands.setContent(note.body, { emitUpdate: false });
+    if (!editor) return;
+    const applyIncoming = () => {
+      if(editor.isDestroyed || editor.isFocused || editor.view.composing)return;
+      const tr=incomingDocument(editor.state,note.body);
+      if(tr)editor.view.dispatch(tr);
+    };
+    applyIncoming();
+    editor.on("blur",applyIncoming);
+    return ()=>{editor.off("blur",applyIncoming);};
   }, [editor, note.body]);
   return (
     <>
@@ -416,10 +421,11 @@ export default function Page() {
     if (mode !== "cloud") return;
     let alive = true;
     const poll = async () => {
-      if (pending.current.size || busy || document.hidden) return;
+      const isEditing=()=>Boolean(document.activeElement?.closest(".prose-editor, .title-input"));
+      if (pending.current.size || busy || document.hidden || isEditing()) return;
       try {
         const [data, loadedFolders] = await Promise.all([remoteAll(),remoteFolders()]);
-        if (alive && !pending.current.size) {
+        if (alive && !pending.current.size && !isEditing()) {
           apply(data);
           setFolders(loadedFolders);
         }
