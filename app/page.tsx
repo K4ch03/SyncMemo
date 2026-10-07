@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import { TextStyle } from "@tiptap/extension-text-style";
+import { TextStyle, BackgroundColor, FontSize } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import {
   TriangleAlert,
@@ -10,6 +10,9 @@ import {
   ArrowLeft,
   Trash2,
   Bold,
+  Italic,
+  Strikethrough,
+  Underline,
   RemoveFormatting,
   Undo2,
   Redo2,
@@ -32,7 +35,7 @@ import {
 const date = (v: string) => {
   const d = new Date(v);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 function GuestWarning() {
   const [pinned, setPinned] = useState(false);
@@ -61,9 +64,13 @@ const colors = [
 ];
 function Composer({
   note,
+  scale,
+  onScale,
   onChange,
 }: {
   note: Note;
+  scale: number;
+  onScale: (value: number) => void;
   onChange: (body: JSONContent, text: string) => void;
 }) {
   const cb = useRef(onChange);
@@ -79,6 +86,8 @@ function Composer({
       }),
       TextStyle,
       Color,
+      BackgroundColor,
+      FontSize,
     ],
     immediatelyRender: false,
     content: note.body,
@@ -93,7 +102,7 @@ function Composer({
     onUpdate: ({ editor }) => cb.current(editor.getJSON(), editor.getText()),
   });
   const [, redraw] = useState(0);
-  const [palette, setPalette] = useState(false);
+  const [palette, setPalette] = useState<"color" | "background" | null>(null);
   useEffect(() => {
     if (!editor) return;
     const f = () => redraw((x) => x + 1);
@@ -111,7 +120,7 @@ function Composer({
   }, [editor, note.body]);
   return (
     <>
-      <div className="toolbar">
+      <div className="toolbar" onMouseDown={e => { if ((e.target as HTMLElement).closest("button")) e.preventDefault(); }}>
         <div className="tool-group">
           <button
             aria-label="太字"
@@ -121,11 +130,14 @@ function Composer({
           >
             <Bold size={18} />
           </button>
+          <button aria-label="斜体" title="斜体" aria-pressed={editor?.isActive("italic") ?? false} className={editor?.isActive("italic") ? "active" : ""} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={18}/></button>
+          <button aria-label="取り消し線" title="取り消し線" aria-pressed={editor?.isActive("strike") ?? false} className={editor?.isActive("strike") ? "active" : ""} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough size={18}/></button>
+          <button aria-label="下線" title="下線" aria-pressed={editor?.isActive("underline") ?? false} className={editor?.isActive("underline") ? "active" : ""} onClick={() => editor?.chain().focus().toggleUnderline().run()}><Underline size={18}/></button>
           <div className="color-wrap">
             <button
               aria-label="文字色"
-              aria-expanded={palette}
-              onClick={() => setPalette(!palette)}
+              aria-expanded={palette === "color"}
+              onClick={() => setPalette(palette === "color" ? null : "color")}
             >
               <span
                 className="color-a"
@@ -138,7 +150,7 @@ function Composer({
               </span>
               <ChevronDown size={12} />
             </button>
-            {palette && (
+            {palette === "color" && (
               <div className="palette" role="group" aria-label="文字色を選ぶ">
                 {colors.map(([name, color]) => (
                   <button
@@ -149,12 +161,16 @@ function Composer({
                     onClick={() => {
                       if (color) editor?.chain().focus().setColor(color).run();
                       else editor?.chain().focus().unsetColor().run();
-                      setPalette(false);
+                      setPalette(null);
                     }}
                   />
                 ))}
               </div>
             )}
+          </div>
+          <div className="color-wrap">
+            <button aria-label="背景色" title="背景色" aria-expanded={palette === "background"} onClick={() => setPalette(palette === "background" ? null : "background")}><span className="background-a">A</span><ChevronDown size={12}/></button>
+            {palette === "background" && <div className="palette background-palette" role="group" aria-label="背景色を選ぶ">{[["なし",""],["赤","#673b42"],["橙","#65462d"],["黄","#615522"],["緑","#344d2c"],["青","#2c4365"],["紫","#503b66"]].map(([name,color]) => <button key={name} aria-label={`背景色：${name}`} title={name} style={{background:color || "#e6e8e5"}} onClick={() => {if(color)editor?.chain().focus().setBackgroundColor(color).run();else editor?.chain().focus().unsetBackgroundColor().run();setPalette(null);}} />)}</div>}
           </div>
           <button
             aria-label="文字の装飾を解除"
@@ -163,6 +179,14 @@ function Composer({
             <RemoveFormatting size={18} />
           </button>
         </div>
+        <label className="editor-select">文字サイズ
+          <select aria-label="文字サイズ" value={editor?.getAttributes("textStyle").fontSize || ""} onChange={e => {if(e.target.value)editor?.chain().focus().setFontSize(e.target.value).run();else editor?.chain().focus().unsetFontSize().run();}}>
+            <option value="">標準</option>{[12,14,16,18,20,24,28,32,40,48].map(n => <option key={n} value={`${n}px`}>{n}px</option>)}
+          </select>
+        </label>
+        <label className="editor-select">表示倍率
+          <select aria-label="表示倍率" value={scale} onChange={e => onScale(Number(e.target.value))}>{[150,125,100,90,70,50].map(n => <option key={n} value={n}>{n}%</option>)}</select>
+        </label>
         <div className="tool-group">
           <button
             aria-label="元に戻す"
@@ -181,9 +205,9 @@ function Composer({
         </div>
       </div>
       <div className="body-wrap">
-        <EditorContent editor={editor} />
+        <EditorContent editor={editor} style={{zoom: scale / 100}} />
         {!note.plain_text && (
-          <span className="placeholder">ここから、書きはじめる。</span>
+          <span className="placeholder" style={{zoom: scale / 100}}>ここから、書きはじめる。</span>
         )}
       </div>
     </>
@@ -195,6 +219,10 @@ export default function Page() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [sort, setSort] = useState("updated-desc");
+  const [scale,setScale] = useState(100);
+  useEffect(() => {try {const saved=Number(localStorage.getItem("syncmemo.scale"));if([150,125,100,90,70,50].includes(saved))setScale(saved);}catch{}},[]);
+  function changeScale(value:number) {setScale(value);try{localStorage.setItem("syncmemo.scale",String(value));}catch{}}
+
   const menuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     try { const saved = localStorage.getItem("syncmemo.sort");
@@ -209,6 +237,20 @@ export default function Page() {
   function changeSort(value: string) { setSort(value); try { localStorage.setItem("syncmemo.sort", value); } catch {} }
 
   const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const restore = () => {const id=window.history.state?.syncMemoNote;setMobile(typeof id === "string");if(typeof id === "string")setSelected(id);};
+    restore();window.addEventListener("popstate",restore);
+    return () => window.removeEventListener("popstate",restore);
+  },[]);
+  function openEditor(id:string) {
+    if(window.matchMedia("(max-width: 700px)").matches) {
+      const state={...window.history.state,syncMemoNote:id};
+      if(window.history.state?.syncMemoNote)window.history.replaceState(state,"");else window.history.pushState(state,"");
+    }
+    setMobile(true);
+  }
+  function backToList() {if(window.history.state?.syncMemoNote)window.history.back();else setMobile(false);}
+
   const [account, setAccount] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -252,8 +294,8 @@ export default function Page() {
         }
         apply(data);
         setSelected(
-          data.sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
-            ?.id ?? null,
+          data.find(n => n.id === window.history.state?.syncMemoNote)?.id ??
+          [...data].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.id ?? null,
         );
       } catch (e) {
         if (alive) {
@@ -476,7 +518,7 @@ export default function Page() {
       } else await local.remove(id);
       setNotes((prev) => prev.filter((n) => n.id !== id));
       setSelected(null);
-      setMobile(false);
+      backToList();
       setDeleting(false);
       setStatus("削除しました");
     } catch (e) {
@@ -529,6 +571,7 @@ export default function Page() {
     };
     stage(copy);
     setSelected(copy.id);
+    openEditor(copy.id);
     await save(copy.id);
     setBusy(false);
   }
@@ -536,7 +579,7 @@ export default function Page() {
     const n = newNote();
     stage(n);
     setSelected(n.id);
-    setMobile(true);
+    openEditor(n.id);
   }
   return (
     <div className="app-shell">
@@ -579,7 +622,7 @@ export default function Page() {
                   }
                   onClick={() => {
                     setSelected(n.id);
-                    setMobile(true);
+                    openEditor(n.id);
                   }}
                 >
                   <div className="note-title">{n.title || "無題のメモ"}</div>
@@ -592,23 +635,10 @@ export default function Page() {
       </aside>
       <main className={"workspace " + (!mobile ? "mobile-hidden-editor" : "")}>
         <header className="workspace-header">
-          <div className="breadcrumb">
-            <button
-              className="back"
-              aria-label="メモ一覧に戻る"
-              onClick={() => setMobile(false)}
-            >
-              <ArrowLeft size={19} />
-            </button>
-            <span>メモ帳</span>
-            <span className="slash">/</span>
-            <strong>
-              {note?.title || (note ? "無題のメモ" : "")}
-            </strong>
-          </div>
+          <button className="back" aria-label="メモ一覧に戻る" onClick={backToList}><ArrowLeft size={19}/></button>
           <div className="document-actions">
-            <span className="save-status" role="status">
-              {status === "保存しました" && <Check size={14} />} {status}
+            <span className="save-status" role="status" aria-label={status}>
+              {status === "保存しました" ? <Check size={14} aria-hidden="true"/> : status}
             </span>
             {note && (
               <button
@@ -638,7 +668,7 @@ export default function Page() {
         )}
         {note ? (
           <article className="document">
-            <div className="document-intro">
+            <div className="document-intro" style={{zoom: scale / 100}}>
               <input
                 className="title-input"
                 aria-label="メモのタイトル"
@@ -653,13 +683,12 @@ export default function Page() {
                   })
                 }
               />
-              <div className="timestamps">
-                <span>最終更新 {date(note.updated_at)}</span>
-              </div>
             </div>
             <Composer
               key={note.id}
               note={note}
+              scale={scale}
+              onScale={changeScale}
               onChange={(body, plain_text) =>
                 stage({
                   ...notesRef.current.find((n) => n.id === note.id)!,
@@ -671,10 +700,7 @@ export default function Page() {
             />
             <footer className="document-footer">
               {mode === "guest" && <div className="editor-warning"><GuestWarning/></div>}
-              <span>
-                {note.plain_text.replace(/\n/g, "").length.toLocaleString()}{" "}
-                文字
-              </span>
+              <span style={{zoom: scale / 100}}>最終更新 {date(note.updated_at)}</span>
               <span>
                 {mode === "cloud" ? (
                   <Cloud size={14} />

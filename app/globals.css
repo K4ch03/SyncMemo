@@ -843,3 +843,24 @@ button svg {
   .timestamps { padding-bottom: 12px; }
   .editor-warning { display: block; }
 }
+
+.workspace-header { min-height: 35px; border-bottom: 0; padding-top: 0; padding-bottom: 0; }
+.document-actions { margin-left: auto; }
+.document-intro { padding-top: 0; }
+.title-input { padding-top: 0; padding-bottom: 5px; }
+.toolbar { padding-top: 6px; padding-bottom: 6px; flex-wrap: wrap; gap: 6px; }
+.editor-select { display: flex; align-items: center; gap: 5px; color: #a9b6ac; font-size: 12px; }
+.editor-select select { border: 1px solid var(--line); border-radius: 5px; background: var(--panel); padding: 5px 2px; font-size: 14px; }
+.background-a { background: #615522; padding: 0 3px; font-weight: bold; }
+.background-palette { left: auto; right: 0; }
+.prose-editor em { font-style: italic; }
+.prose-editor s { text-decoration: line-through; }
+.prose-editor u { text-decoration: underline; }
+.document-footer { flex-wrap: wrap; gap: 8px; }
+@media(max-width:700px) {
+  .workspace-header { min-height: 38px; }
+  .document-intro { padding-top: 0; }
+  .toolbar .tool-group { padding-right: 4px; }
+  .toolbar .tool-group button { min-width: 33px; height: 36px; }
+  .background-palette { left: -165px; right: auto; }
+}
