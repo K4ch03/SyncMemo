@@ -467,7 +467,7 @@ export default function Page() {
     for (const id of pending.current.keys()) await save(id);
     return pending.current.size === 0;
   }
-  async function login(provider: "google" | "x") {
+  async function login() {
     if (!cloud) {
       setAccount(true);
       return;
@@ -475,7 +475,7 @@ export default function Page() {
     if (!(await flush())) return;
     setBusy(true);
     try {
-      const { error: e } = await cloud.auth.signInWithOAuth({provider, options: {redirectTo: window.location.origin}});
+      const { error: e } = await cloud.auth.signInWithOAuth({provider: "google", options: {redirectTo: window.location.origin}});
       if (e) throw e;
     } catch (e) {
       setError(message(e));
@@ -650,14 +650,13 @@ export default function Page() {
                   }}
                 >
                   <div className="note-title">{n.title || "無題のメモ"}</div>
-                  <p>{n.plain_text || "本文はまだありません"}</p>
-                  <time>{date(n.updated_at)}</time>
                 </button>
               ))
             )}
           </nav>
         </div>
         <footer className="account-footer">
+          <a className="privacy-link" href="/privacy" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
           <button className="account-button" onClick={() => setAccount(true)}>
             <span className="avatar">
               {mode === "cloud" ? <Cloud size={19} /> : <HardDrive size={19} />}
@@ -856,8 +855,8 @@ export default function Page() {
               <>
                 {cloud ? (
                   <div className="login-options">
-                    <button className="primary" onClick={() => void login("google")} disabled={busy}>Googleでログイン</button>
-                    <button className="secondary" onClick={() => void login("x")} disabled={busy}>Xでログイン</button>
+                    <a className="privacy-link" href="/privacy" target="_blank" rel="noopener noreferrer">ログイン前にプライバシーポリシーを確認</a>
+                    <button className="primary" onClick={() => void login()} disabled={busy}>Googleでログイン</button>
                     <p className="login-help">スマホとPCでは、同じログイン方法・アカウントを使ってください。</p>
                   </div>
                 ) : (
