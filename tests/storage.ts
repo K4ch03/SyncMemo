@@ -4,6 +4,7 @@ import { getSchema } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle,Color,BackgroundColor,FontSize } from "@tiptap/extension-text-style";
 import assert from "node:assert/strict";
+import {LineBand} from "../lib/line-band";
 import { local, newNote } from "../lib/store";
 async function main() {
   const n = {
@@ -14,6 +15,7 @@ async function main() {
       content: [
         {
           type: "paragraph",
+          attrs: {bandColor:"#31465c"},
           content: [
             {
               type: "text",
@@ -31,8 +33,9 @@ async function main() {
     },
     plain_text: "大切なこと",
   };
-  const schema = getSchema([StarterKit.configure({italic:false}),TextStyle,Color,BackgroundColor,FontSize]);
+  const schema = getSchema([StarterKit.configure({italic:false}),TextStyle,Color,BackgroundColor,FontSize,LineBand]);
   const roundtrip = schema.nodeFromJSON(n.body).toJSON();
+  assert.equal(roundtrip.content[0].attrs.bandColor,"#31465c");
   const marks = roundtrip.content[0].content[0].marks;
   for (const mark of ["bold","strike","underline","textStyle"]) assert.ok(marks.some((m: {type:string}) => m.type === mark));
   assert.equal(marks.find((m: {type:string})=>m.type === "textStyle").attrs.fontSize,"24px");

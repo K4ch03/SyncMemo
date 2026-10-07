@@ -1,4 +1,7 @@
 "use client";
+import UnsetColor from "./UnsetColor";
+import {LineBand,bandColors} from "@/lib/line-band";
+import {memoView} from "@/lib/mobile-navigation";
 import NoteList from "./NoteList";
 import { incomingDocument } from "@/lib/editor-sync";
 import { useCallback, useEffect, useRef, useState, useId } from "react";
@@ -7,6 +10,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, BackgroundColor, FontSize } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import {
+  PanelTop,
   TriangleAlert,
   Plus,
   FolderPlus,
@@ -59,7 +63,7 @@ function GuestWarning() {
   </div>;
 }
 const colors = [
-  ["標準", ""],
+  ["未指定", ""],
   ["赤", "#ff9393"],
   ["オレンジ", "#ffbd7a"],
   ["黄", "#eadb79"],
@@ -94,6 +98,7 @@ function Composer({
       Color,
       BackgroundColor,
       FontSize,
+      LineBand,
     ],
     immediatelyRender: false,
     content: note.body,
@@ -108,7 +113,7 @@ function Composer({
     onUpdate: ({ editor }) => cb.current(editor.getJSON(), editor.getText()),
   });
   const [, redraw] = useState(0);
-  const [palette, setPalette] = useState<"color" | "background" | null>(null);
+  const [palette, setPalette] = useState<"color" | "background" | "band" | null>(null);
   useEffect(() => {
     if (!editor) return;
     const f = () => redraw((x) => x + 1);
@@ -182,6 +187,7 @@ function Composer({
             <button aria-label="背景色" title="背景色" aria-expanded={palette === "background"} onClick={() => setPalette(palette === "background" ? null : "background")}><span className="background-a">A</span><ChevronDown size={12}/></button>
 
           </div>
+          <button aria-label="背景帯" title="背景帯" aria-expanded={palette === "band"} onClick={()=>setPalette(palette === "band" ? null : "band")}><PanelTop size={18}/><ChevronDown size={12}/></button>
           <button
             aria-label="文字の装飾を解除"
             onClick={() => editor?.chain().focus().unsetAllMarks().run()}
@@ -200,23 +206,27 @@ function Composer({
 
       </div>
             {palette === "color" && (
-              <div className="palette" role="group" aria-label="文字色を選ぶ">
+              <div className="palette" role="group" aria-label="文字色を選ぶ" onMouseDown={e=>e.preventDefault()}>
                 {colors.map(([name, color]) => (
                   <button
                     key={name}
                     aria-label={name}
                     title={name}
-                    style={{ background: color || "#e6e8e5" }}
+                    style={{ background: color || "transparent" }}
                     onClick={() => {
                       if (color) editor?.chain().focus().setColor(color).run();
                       else editor?.chain().focus().unsetColor().run();
                       setPalette(null);
                     }}
-                  />
+                  >{!color && <UnsetColor/>}</button>
                 ))}
               </div>
             )}
-            {palette === "background" && <div className="palette background-palette" role="group" aria-label="背景色を選ぶ">{[["なし",""],["赤","#673b42"],["橙","#65462d"],["黄","#615522"],["緑","#344d2c"],["青","#2c4365"],["紫","#503b66"]].map(([name,color]) => <button key={name} aria-label={`背景色：${name}`} title={name} style={{background:color || "#e6e8e5"}} onClick={() => {if(color)editor?.chain().focus().setBackgroundColor(color).run();else editor?.chain().focus().unsetBackgroundColor().run();setPalette(null);}} />)}</div>}
+            {palette === "background" && <div className="palette background-palette" role="group" aria-label="背景色を選ぶ" onMouseDown={e=>e.preventDefault()}>{[["未指定",""],["赤","#673b42"],["橙","#65462d"],["黄","#615522"],["緑","#344d2c"],["青","#2c4365"],["紫","#503b66"]].map(([name,color]) => <button key={name} aria-label={`背景色：${name}`} title={name} style={{background:color || "transparent"}} onClick={() => {if(color)editor?.chain().focus().setBackgroundColor(color).run();else editor?.chain().focus().unsetBackgroundColor().run();setPalette(null);}}>{!color && <UnsetColor/>}</button>)}</div>}
+      {palette === "band" && <div className="palette band-palette" role="group" aria-label="背景帯の色を選ぶ" onMouseDown={e=>e.preventDefault()}>
+        <button aria-label="背景帯：未指定" title="未指定" onClick={()=>{editor?.chain().focus().setLineBand(null).run();setPalette(null);}}><UnsetColor/></button>
+        {bandColors.map(([name,color])=><button key={color} aria-label={`背景帯：${name}`} title={name} style={{background:color}} onClick={()=>{editor?.chain().focus().setLineBand(color).run();setPalette(null);}}/>)}
+      </div>}
       </div>
       <div className="body-wrap">
         <EditorContent editor={editor} style={{zoom: scale / 100}} />
@@ -255,18 +265,31 @@ export default function Page() {
 
   const [mobile, setMobile] = useState(false);
   useEffect(() => {
-    const restore = () => {const id=window.history.state?.syncMemoNote;setMobile(typeof id === "string");if(typeof id === "string")setSelected(id);};
-    restore();window.addEventListener("popstate",restore);
-    return () => window.removeEventListener("popstate",restore);
+    const restore = () => {
+      const view=memoView(window.history.state,window.location.hash);
+      // Missing router state is not an instruction to leave the editor.
+      if(!view)return;
+      setMobile(view.kind === "note");if(view.kind === "note")setSelected(view.id);
+    };
+    restore();window.addEventListener("popstate",restore);window.addEventListener("hashchange",restore);
+    return ()=>{window.removeEventListener("popstate",restore);window.removeEventListener("hashchange",restore);};
   },[]);
   function openEditor(id:string) {
     if(window.matchMedia("(max-width: 700px)").matches) {
-      const state={...window.history.state,syncMemoNote:id};
-      if(window.history.state?.syncMemoNote)window.history.replaceState(state,"");else window.history.pushState(state,"");
+      const view=memoView(window.history.state,window.location.hash);
+      const url=new URL(window.location.href);url.hash=`note=${id}`;
+      if(view?.kind === "note")window.history.replaceState({...window.history.state,syncMemoNote:id,syncMemoView:"note"},"",url);
+      else {
+        window.history.replaceState({...window.history.state,syncMemoNote:null,syncMemoView:"list"},"");
+        window.history.pushState({...window.history.state,syncMemoNote:id,syncMemoView:"note",syncMemoPushed:true},"",url);
+      }
     }
     setMobile(true);
   }
-  function backToList() {if(window.history.state?.syncMemoNote)window.history.back();else setMobile(false);}
+  function backToList() {
+    if(window.history.state?.syncMemoPushed && memoView(window.history.state,window.location.hash)?.kind === "note")window.history.back();
+    else {const url=new URL(window.location.href);url.hash="notes";window.history.replaceState({...window.history.state,syncMemoNote:null,syncMemoView:"list",syncMemoPushed:false},"",url);setMobile(false);}
+  }
 
   const [folderDialog,setFolderDialog]=useState<{folder:Folder}|null>(null);
   const [folderError,setFolderError]=useState("");
@@ -318,7 +341,7 @@ export default function Page() {
         }
         apply(data);
         setSelected(
-          data.find(n => n.id === window.history.state?.syncMemoNote)?.id ??
+          data.find(n => {const view=memoView(window.history.state,window.location.hash);return view?.kind === "note" && n.id === view.id;})?.id ??
           [...data].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.id ?? null,
         );
       } catch (e) {

@@ -938,3 +938,16 @@ button svg {
 .folder-inline-wrap { display:flex; align-items:center; gap:7px; flex:1; min-width:0; padding-left:5px; }
 .folder-inline-wrap svg { flex-shrink:0; }
 .folder-name-inline { width:100%; min-width:0; height:24px; padding:0 4px; border:1px solid var(--accent); border-radius:3px; background:var(--bg); color:var(--text); font-size:16px; }
+/* Paragraph bands add color only; existing line metrics remain unchanged. */
+.prose-editor p[data-band-color] { border-radius:2px; }
+.palette button { display:grid; place-items:center; color:var(--text); flex-shrink:0; }
+.color-heading { justify-content:flex-start; gap:8px; }
+.color-heading > button { display:grid; place-items:center; width:26px; height:26px; }
+@media(hover:none) and (pointer:coarse) {
+ .note-card, .folder-row > button, .folder-row .folder-toggle, .root-drop { transition:filter 100ms,transform 100ms; -webkit-tap-highlight-color:transparent; }
+ .note-card:active:not(:disabled), .folder-row > button:active:not(:disabled), .root-drop:active { filter:brightness(1.12); transform:scale(.995); background-image:linear-gradient(#ffffff0c,#ffffff0c); }
+ button:hover:not(:disabled) { background-color:transparent; }
+ .note-card.selected:hover { background-color:#2d3529; }
+ .has-folder-color .note-card.selected:hover { background-color:transparent; }
+}
+@media(prefers-reduced-motion:reduce) { .note-card,.folder-row > button,.root-drop { transition:none; } }
