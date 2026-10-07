@@ -1,4 +1,5 @@
 "use client";
+import NoteList from "./NoteList";
 import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -29,6 +30,8 @@ import {
   newNote,
   remoteAll,
   remoteSave,
+  remoteFolders,
+  type Folder,
   type Note,
 } from "@/lib/store";
 const date = (v: string) => {
@@ -220,6 +223,8 @@ function Composer({
 export default function Page() {
   const [mode, setMode] = useState<"loading" | "guest" | "cloud">("loading");
   const [email, setEmail] = useState("");
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [adding, setAdding] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [sort, setSort] = useState("updated-desc");
@@ -283,7 +288,9 @@ export default function Page() {
         const session = sessionResult?.data.session ?? null;
         let data: Note[];
         if (session) {
-          data = await remoteAll();
+          const loaded = await Promise.all([remoteAll(), remoteFolders()]);
+          data = loaded[0];
+          if(alive) setFolders(loaded[1]);
           if (!alive) return;
           setEmail(session.user.email || session.user.user_metadata?.user_name || "ログイン中");
           setMode("cloud");
@@ -293,6 +300,7 @@ export default function Page() {
           );
         } else {
           data = await local.all();
+          if(alive) setFolders(await local.folders());
           if (!alive) return;
           setMode("guest");
         }
@@ -307,6 +315,7 @@ export default function Page() {
           setError(message(e));
           try {
             apply(await local.all());
+            setFolders(await local.folders());
           } catch {
             setError(
               "ブラウザへの保存が利用できません。サイトデータの設定をご確認ください。",
@@ -403,9 +412,10 @@ export default function Page() {
     const poll = async () => {
       if (pending.current.size || busy || document.hidden) return;
       try {
-        const data = await remoteAll();
+        const [data, loadedFolders] = await Promise.all([remoteAll(),remoteFolders()]);
         if (alive && !pending.current.size) {
           apply(data);
+          setFolders(loadedFolders);
         }
       } catch {
         if (alive) setStatus("同期を待っています");
@@ -539,6 +549,11 @@ export default function Page() {
       const { data: userData, error: authError } = await cloud!.auth.getUser();
       if (authError || !userData.user)
         throw authError || new Error("ログインしてください。");
+      const guestFolders = await local.folders();
+      if(guestFolders.length) {
+        const {error:folderError} = await cloud!.from("folders").upsert(guestFolders.map(f=>({...f,owner_id:userData.user!.id})),{onConflict:"id",ignoreDuplicates:true});
+        if(folderError) throw folderError;
+      }
       if (guests.length) {
         const { error: importError } = await cloud!.from("notes").upsert(
           guests.map((n) => ({
@@ -551,6 +566,7 @@ export default function Page() {
         if (importError) throw importError;
       }
       apply(await remoteAll());
+      setFolders(await remoteFolders());
       setGuestCount(0);
       setStatus("ゲストのメモをコピーしました");
       setAccount(false);
@@ -578,6 +594,40 @@ export default function Page() {
     openEditor(copy.id);
     await save(copy.id);
     setBusy(false);
+  }
+  async function editFolder(folder?: Folder) {
+    const name = window.prompt(folder ? "フォルダ名を変更" : "フォルダ名",folder?.name || "新しいフォルダ")?.trim();
+    if(!name) return;
+    if(name.length>100){setError("フォルダ名は100文字以内にしてください。");return;}
+    setBusy(true);
+    try {
+      const f:Folder = folder ? {...folder,name} : {id:crypto.randomUUID(),name,created_at:new Date().toISOString()};
+      if(mode === "cloud") {
+        const result = folder ? await cloud!.from("folders").update({name}).eq("id",f.id).select("id").single() : await cloud!.from("folders").insert(f);
+        if(result.error) throw result.error;
+      } else await local.putFolder(f);
+      setFolders(prev=>[...prev.filter(x=>x.id!==f.id),f]);
+      setError("");
+    } catch(e){setError(message(e));} finally{setBusy(false);}
+  }
+  async function deleteFolder(folder:Folder) {
+    if(!window.confirm(`「${folder.name}」を削除しますか？中のメモはフォルダ外に戻ります。`))return;
+    setBusy(true);
+    try {
+      if(!(await flush()))return;
+      if(mode === "cloud") {
+        const {error:e}=await cloud!.from("folders").delete().eq("id",folder.id);if(e)throw e;
+        apply(await remoteAll());
+      } else {
+        await local.removeFolder(folder.id);apply(await local.all());
+      }
+      setFolders(prev=>prev.filter(x=>x.id!==folder.id));setError("");
+    }catch(e){setError(message(e));}finally{setBusy(false);}
+  }
+  function moveNote(id:string,folder:string|null) {
+    if(busy)return;
+    const n=notesRef.current.find(n=>n.id===id);
+    if(n && (n.folder_id??null)!==folder)stage({...n,folder_id:folder,updated_at:new Date().toISOString()});
   }
   function add() {
     const n = newNote();
@@ -607,33 +657,14 @@ export default function Page() {
               <option value="title-asc">タイトル · 昇順</option>
               <option value="title-desc">タイトル · 降順</option>
             </select>
-            <button className="add-icon" aria-label="メモを新規作成" onClick={add} disabled={mode === "loading"}><Plus size={22}/></button>
+            <div className="add-menu" onKeyDown={e=>{if(e.key === "Escape")setAdding(false);}}>
+              <button className="add-icon" aria-label="メモまたはフォルダを追加" aria-expanded={adding} onClick={()=>setAdding(v=>!v)} disabled={mode === "loading" || busy}><Plus size={22}/></button>
+              {adding && <><button className="add-menu-dismiss" aria-label="追加メニューを閉じる" onClick={()=>setAdding(false)}/><div className="app-menu-panel"><button onClick={()=>{setAdding(false);add();}}>メモを追加</button><button onClick={()=>{setAdding(false);void editFolder();}}>フォルダを追加</button></div></>}
+            </div>
           </div>
-          <nav className="notes-list" aria-label="メモ一覧">
-            {mode === "loading" ? (
-              <p className="list-empty">読み込み中…</p>
-            ) : list.length === 0 ? (
-              <div className="list-empty">
-                まだメモはありません。
-                <button onClick={add}>最初のメモを書く</button>
-              </div>
-            ) : (
-              list.map((n) => (
-                <button
-                  key={n.id}
-                  className={
-                    "note-card " + (selected === n.id ? "selected" : "")
-                  }
-                  onClick={() => {
-                    setSelected(n.id);
-                    openEditor(n.id);
-                  }}
-                >
-                  <div className="note-title">{n.title || "無題のメモ"}</div>
-                </button>
-              ))
-            )}
-          </nav>
+          {error && <div className="sidebar-error" role="alert">{error}</div>}
+          {mode === "loading" ? <p className="list-empty">読み込み中…</p> : <NoteList notes={list} folders={folders} selected={selected} disabled={busy} onAdd={add} onOpen={id=>{setSelected(id);openEditor(id);}} onFolder={f=>void editFolder(f)} onDeleteFolder={f=>void deleteFolder(f)} onMove={moveNote}/>}
+
         </div>
         {mode === "guest" && <div className="sidebar-warning"><GuestWarning/></div>}
       </aside>

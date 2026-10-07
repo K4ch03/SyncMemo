@@ -10,7 +10,7 @@ await db.exec(
   `create role anon;create role authenticated;create schema auth;create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.test_uid',true),'')::uuid$$;grant usage on schema auth to authenticated;grant execute on function auth.uid() to authenticated;`,
 );
 await db.exec(
-  await readFile(new URL("../supabase/schema.sql", import.meta.url), "utf8"),
+  (await readFile(new URL("../supabase/schema.sql", import.meta.url), "utf8")).split("-- Run once in Supabase SQL Editor")[0],
 );
 await db.query(
   "insert into auth.users values ($1,$2,now()),($3,$4,now()),($5,$6,now())",
@@ -42,6 +42,11 @@ assert.equal(
   (await db.query("select title from public.notes")).rows[0].title,
   "two",
 );
+const folderMigration=await readFile(new URL("../supabase/migrations/20261007_folders.sql",import.meta.url),"utf8");
+await db.exec("reset role");await db.exec(folderMigration);await db.exec(folderMigration);
+await asUser(alice);
+assert.equal((await db.query("select title,folder_id from public.notes")).rows[0].title,"two");
+assert.equal((await db.query("select folder_id from public.notes")).rows[0].folder_id,null);
 // Simulate the former restrictive policy, then migrate twice without losing notes.
 await db.exec("reset role;drop policy own_notes on public.notes;create policy own_notes on public.notes for all to authenticated using (false) with check (false);");
 const migration = await readFile(new URL("../supabase/migrations/20261007_public_login.sql", import.meta.url), "utf8");
@@ -68,11 +73,28 @@ assert.equal((await db.query("select * from public.notes")).rows.length, 1);
 await assert.rejects(() => save("other user edit", 2), /CONFLICT/);
 await assert.rejects(() => db.query("select public.delete_note($1,$2)", [note, 2]), /CONFLICT/);
 await asUser(alice);
+const folder="40000000-0000-4000-8000-000000000001";
+await db.query("insert into public.folders(id,name) values($1,'仕事')",[folder]);
+await db.query("select * from public.save_note_with_folder($1,'two','{}','',2,$2)",[note,folder]);
+assert.equal((await db.query("select folder_id from public.notes")).rows[0].folder_id,folder);
+await assert.rejects(()=>db.query("select * from public.save_note_with_folder($1,'stale','{}','',2,null)",[note]),/CONFLICT/);
+await asUser(bob);
+assert.equal((await db.query("select * from public.folders")).rows.length,0);
+await assert.rejects(()=>db.query("insert into public.notes(id,folder_id) values($1,$2)",["50000000-0000-4000-8000-000000000001",folder]),/foreign key/);
+await db.query("delete from public.folders where id=$1",[folder]);
+await asUser(alice);
+assert.equal((await db.query("select * from public.folders")).rows.length,1);
+await db.query("delete from public.folders where id=$1",[folder]);
+assert.equal((await db.query("select folder_id from public.notes")).rows[0].folder_id,null);
+assert.equal((await db.query("select title from public.notes")).rows[0].title,"two");
+await db.exec("reset role");
+await db.exec(folderMigration);await db.exec(folderMigration);
+await asUser(alice);
 await assert.rejects(
   () => db.query("select public.delete_note($1,$2)", [note, 1]),
   /CONFLICT/,
 );
-await db.query("select public.delete_note($1,$2)", [note, 2]);
+await db.query("select public.delete_note($1,$2)", [note, 3]);
 assert.equal((await db.query("select * from public.notes")).rows.length, 0);
 await db.exec("reset role;set role anon;");
 await assert.rejects(
