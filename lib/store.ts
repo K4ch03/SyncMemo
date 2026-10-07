@@ -1,7 +1,7 @@
 import { openDB } from "idb";
 import { createClient } from "@supabase/supabase-js";
 import type { JSONContent } from "@tiptap/react";
-export type Folder = { id: string; name: string; created_at: string };
+export type Folder = { id: string; name: string; color?: string | null; created_at: string };
 export type Note = {
   folder_id?: string | null;
   id: string;
@@ -85,7 +85,7 @@ export async function remoteSave(n: Note, revision: number): Promise<Note> {
 }
 
 export async function remoteFolders(): Promise<Folder[]> {
-  const {data,error} = await cloud!.from("folders").select("id,name,created_at");
+  const {data,error} = await cloud!.from("folders").select("id,name,created_at,color");
   if(error) throw error;
   return data ?? [];
 }

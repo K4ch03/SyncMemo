@@ -223,6 +223,7 @@ function Composer({
 export default function Page() {
   const [mode, setMode] = useState<"loading" | "guest" | "cloud">("loading");
   const [email, setEmail] = useState("");
+  const [editingTitle,setEditingTitle]=useState(false);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [adding, setAdding] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
@@ -595,6 +596,16 @@ export default function Page() {
     await save(copy.id);
     setBusy(false);
   }
+  async function setFolderColor(folder:Folder,color:string|null) {
+    setBusy(true);
+    setFolders(prev=>prev.map(f=>f.id===folder.id?{...f,color}:f));
+    try {
+      if(mode === "cloud") {
+        const {error:e}=await cloud!.from("folders").update({color}).eq("id",folder.id).select("id").single();if(e)throw e;
+      } else await local.putFolder({...folder,color});
+      setError("");
+    }catch(e){setFolders(prev=>prev.map(f=>f.id===folder.id?folder:f));setError(message(e));}finally{setBusy(false);}
+  }
   async function editFolder(folder?: Folder) {
     const name = window.prompt(folder ? "フォルダ名を変更" : "フォルダ名",folder?.name || "新しいフォルダ")?.trim();
     if(!name) return;
@@ -629,8 +640,8 @@ export default function Page() {
     const n=notesRef.current.find(n=>n.id===id);
     if(n && (n.folder_id??null)!==folder)stage({...n,folder_id:folder,updated_at:new Date().toISOString()});
   }
-  function add() {
-    const n = newNote();
+  function add(folder?:string) {
+    const n = {...newNote(),folder_id:folder??null};
     stage(n);
     setSelected(n.id);
     openEditor(n.id);
@@ -663,7 +674,7 @@ export default function Page() {
             </div>
           </div>
           {error && <div className="sidebar-error" role="alert">{error}</div>}
-          {mode === "loading" ? <p className="list-empty">読み込み中…</p> : <NoteList notes={list} folders={folders} selected={selected} disabled={busy} onAdd={add} onOpen={id=>{setSelected(id);openEditor(id);}} onFolder={f=>void editFolder(f)} onDeleteFolder={f=>void deleteFolder(f)} onMove={moveNote}/>}
+          {mode === "loading" ? <p className="list-empty">読み込み中…</p> : <NoteList notes={list} folders={folders} selected={selected} disabled={busy} onAdd={add} onColor={(f,color)=>void setFolderColor(f,color)} onOpen={id=>{setSelected(id);openEditor(id);}} onFolder={f=>void editFolder(f)} onDeleteFolder={f=>void deleteFolder(f)} onMove={moveNote}/>}
 
         </div>
         {mode === "guest" && <div className="sidebar-warning"><GuestWarning/></div>}
@@ -672,6 +683,8 @@ export default function Page() {
         <header className="workspace-header">
           <button className="back" aria-label="メモ一覧に戻る" onClick={backToList}><ArrowLeft size={19}/></button>
           <div className="document-actions">
+            {mode === "guest" && <div className="header-warning"><GuestWarning/></div>}
+            {note && <span className="header-updated">最終更新 {date(note.updated_at)}</span>}
             <span className="save-status" role="status" aria-label={status}>
               {status === "保存しました" ? <Check size={14} aria-hidden="true"/> : status}
             </span>
@@ -709,7 +722,9 @@ export default function Page() {
                 aria-label="メモのタイトル"
                 placeholder="無題のメモ"
                 maxLength={200}
-                value={note.title}
+                onFocus={()=>setEditingTitle(true)}
+                onBlur={()=>setEditingTitle(false)}
+                value={editingTitle ? note.title : (folders.find(f=>f.id===note.folder_id) ? `${folders.find(f=>f.id===note.folder_id)!.name} / ${note.title || "無題のメモ"}` : note.title)}
                 onChange={(e) =>
                   stage({
                     ...note,
@@ -733,18 +748,7 @@ export default function Page() {
                 })
               }
             />
-            <footer className="document-footer">
-              {mode === "guest" && <div className="editor-warning"><GuestWarning/></div>}
-              <span style={{zoom: scale / 100}}>最終更新 {date(note.updated_at)}</span>
-              <span>
-                {mode === "cloud" ? (
-                  <Cloud size={14} />
-                ) : (
-                  <HardDrive size={14} />
-                )}{" "}
-                {mode === "cloud" ? "クラウド保存" : "このブラウザに保存"}
-              </span>
-            </footer>
+
           </article>
         ) : (
           <div className="empty-workspace">
@@ -760,7 +764,7 @@ export default function Page() {
             </p>
             <button
               className="primary"
-              onClick={add}
+              onClick={()=>add()}
               disabled={mode === "loading"}
             >
               <Plus size={18} /> 新しいメモ

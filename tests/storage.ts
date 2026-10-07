@@ -45,11 +45,12 @@ async function main() {
   await local.put({ ...n, title: "更新" });
   assert.equal((await local.all()).length, 1);
   assert.equal((await local.all())[0].title, "更新");
-  const folder={id:crypto.randomUUID(),name:"仕事",created_at:new Date().toISOString()};
+  const folder={id:crypto.randomUUID(),name:"仕事",color:"#1a80fc",created_at:new Date().toISOString()};
   await local.putFolder(folder);
   await local.put({...n,folder_id:folder.id});
   assert.equal((await local.all())[0].folder_id,folder.id);
   assert.equal((await local.folders())[0].name,"仕事");
+  assert.equal((await local.folders())[0].color,"#1a80fc");
   await local.removeFolder(folder.id);
   assert.equal((await local.folders()).length,0);
   assert.equal((await local.all())[0].folder_id,null);
