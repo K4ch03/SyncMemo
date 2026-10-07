@@ -12,6 +12,7 @@ import Color from "@tiptap/extension-color";
 import {
   PanelTop,
   TriangleAlert,
+  Minus,
   Plus,
   FolderPlus,
   FilePlus2,
@@ -114,6 +115,20 @@ function Composer({
   });
   const [, redraw] = useState(0);
   const [palette, setPalette] = useState<"color" | "background" | "band" | null>(null);
+  const toolbarRef=useRef<HTMLDivElement>(null);
+  useEffect(()=>{
+    if(!palette)return;
+    const outside=(e:PointerEvent)=>{
+      const target=e.target as Element;
+      const allowed=toolbarRef.current?.contains(target) && target.closest('.palette, [data-palette-trigger]');
+      if(!allowed)setPalette(null);
+    };
+    const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')setPalette(null);};
+    document.addEventListener('pointerdown',outside);document.addEventListener('keydown',escape);
+    return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
+  },[palette]);
+  const fontSize=Number.parseFloat(editor?.getAttributes('textStyle').fontSize || '16') || 16;
+  const resizeFont=(delta:number)=>{editor?.chain().focus().setFontSize(`${Math.max(8,Math.min(72,fontSize+delta))}px`).run();};
   useEffect(() => {
     if (!editor) return;
     const f = () => redraw((x) => x + 1);
@@ -135,7 +150,7 @@ function Composer({
   }, [editor, note.body]);
   return (
     <>
-      <div className="toolbar-shell">
+      <div className="toolbar-shell" ref={toolbarRef}>
       <div className="toolbar" onMouseDown={e => { if ((e.target as HTMLElement).closest("button")) e.preventDefault(); }}>
         <div className="tool-group">
           <button
@@ -166,7 +181,7 @@ function Composer({
           <button aria-label="下線" title="下線" aria-pressed={editor?.isActive("underline") ?? false} className={editor?.isActive("underline") ? "active" : ""} onClick={() => editor?.chain().focus().toggleUnderline().run()}><Underline size={18}/></button>
           <div className="color-wrap">
             <button
-              aria-label="文字色"
+              data-palette-trigger aria-label="文字色"
               aria-expanded={palette === "color"}
               onClick={() => setPalette(palette === "color" ? null : "color")}
             >
@@ -184,10 +199,10 @@ function Composer({
 
           </div>
           <div className="color-wrap">
-            <button aria-label="背景色" title="背景色" aria-expanded={palette === "background"} onClick={() => setPalette(palette === "background" ? null : "background")}><span className="background-a">A</span><ChevronDown size={12}/></button>
+            <button data-palette-trigger aria-label="背景色" title="背景色" aria-expanded={palette === "background"} onClick={() => setPalette(palette === "background" ? null : "background")}><span className="background-a">A</span><ChevronDown size={12}/></button>
 
           </div>
-          <button aria-label="背景帯" title="背景帯" aria-expanded={palette === "band"} onClick={()=>setPalette(palette === "band" ? null : "band")}><PanelTop size={18}/><ChevronDown size={12}/></button>
+          <button data-palette-trigger aria-label="背景帯" title="背景帯" aria-expanded={palette === "band"} onClick={()=>setPalette(palette === "band" ? null : "band")}><PanelTop size={18}/><ChevronDown size={12}/></button>
           <button
             aria-label="文字の装飾を解除"
             onClick={() => editor?.chain().focus().unsetAllMarks().run()}
@@ -195,11 +210,11 @@ function Composer({
             <RemoveFormatting size={18} />
           </button>
         </div>
-        <label className="editor-select">
-          <select aria-label="文字サイズ" value={editor?.getAttributes("textStyle").fontSize || ""} onChange={e => {if(e.target.value)editor?.chain().focus().setFontSize(e.target.value).run();else editor?.chain().focus().unsetFontSize().run();}}>
-            <option value="">標準</option>{[12,14,16,18,20,24,28,32,40,48].map(n => <option key={n} value={`${n}px`}>{n}px</option>)}
-          </select>
-        </label>
+        <div className="font-stepper tool-group" role="group" aria-label="文字サイズ">
+          <button aria-label="文字を小さくする" title="文字を小さくする" disabled={!editor || fontSize<=8} onClick={()=>resizeFont(-2)}><Minus size={16}/></button>
+          <output aria-live="polite" aria-label="現在の文字サイズ">{fontSize}px</output>
+          <button aria-label="文字を大きくする" title="文字を大きくする" disabled={!editor || fontSize>=72} onClick={()=>resizeFont(2)}><Plus size={16}/></button>
+        </div>
         <label className="editor-select">
           <select aria-label="表示倍率" value={scale} onChange={e => onScale(Number(e.target.value))}>{[150,125,100,90,70,50].map(n => <option key={n} value={n}>{n}%</option>)}</select>
         </label>

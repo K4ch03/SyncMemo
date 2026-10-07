@@ -951,3 +951,8 @@ button svg {
  .has-folder-color .note-card.selected:hover { background-color:transparent; }
 }
 @media(prefers-reduced-motion:reduce) { .note-card,.folder-row > button,.root-drop { transition:none; } }
+/* Paint behind text without changing glyph positions or paragraph metrics. */
+.prose-editor p[data-band-color] { background:none; border-radius:0; }
+.line-band-text { background:var(--line-band-color); border-radius:3px; box-shadow:3px 0 0 var(--line-band-color),-3px 0 0 var(--line-band-color); -webkit-box-decoration-break:clone; box-decoration-break:clone; }
+.font-stepper { gap:2px; }
+.font-stepper output { min-width:40px; text-align:center; font-size:13px; font-variant-numeric:tabular-nums; }
