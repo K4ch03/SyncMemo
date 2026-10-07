@@ -822,3 +822,24 @@ button svg {
 .account-description { white-space: pre-line; }
 .login-options { margin-top: 14px; gap: 8px; }
 .login-options .privacy-link { margin: 0 0 4px; }
+
+/* Editor spacing: compact lines with minimal paragraph spacing. */
+.document-intro { padding-top: 26px; }
+.title-input { padding: 6px 0 4px; line-height: 1.4; }
+.timestamps { padding: 5px 0 16px; }
+.body-wrap { padding-top: 12px; }
+.prose-editor { line-height: 1.5; }
+.prose-editor p { margin: 0 0 2px; }
+.prose-editor ul, .prose-editor ol { margin: 2px 0; }
+.prose-editor li p { margin-bottom: 0; }
+.placeholder { top: 12px; line-height: 1.5; }
+.sidebar-warning { padding: 4px 14px 10px; }
+.guest-warning { position: relative; width: 34px; }
+.guest-warning > button { display: grid; place-items: center; width: 34px; height: 34px; color: #e8c477; border-radius: 6px; }
+.guest-warning-popup { position: absolute; bottom: calc(100% + 7px); left: 0; width: 280px; max-width: calc(100vw - 44px); padding: 12px 14px; border: 1px solid #726044; border-radius: 8px; background: #302c23; color: #f0dfb7; font-size: 14px; line-height: 1.65; z-index: 45; box-shadow: 0 8px 25px #0007; }
+.editor-warning { display: none; }
+@media(max-width:700px) {
+  .document-intro { padding-top: 16px; }
+  .timestamps { padding-bottom: 12px; }
+  .editor-warning { display: block; }
+}

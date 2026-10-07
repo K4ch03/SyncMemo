@@ -1,10 +1,11 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import {
+  TriangleAlert,
   Plus,
   ArrowLeft,
   Trash2,
@@ -28,13 +29,27 @@ import {
   remoteSave,
   type Note,
 } from "@/lib/store";
-const date = (v: string) =>
-  new Date(v).toLocaleString("ja-JP", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+const date = (v: string) => {
+  const d = new Date(v);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+function GuestWarning() {
+  const [pinned, setPinned] = useState(false);
+  const [hover, setHover] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const id = useId();
+  useEffect(() => {
+    const outside = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) {setPinned(false);setHover(false);} };
+    const escape = (e: KeyboardEvent) => {if(e.key === "Escape"){setPinned(false);setHover(false);}};
+    document.addEventListener("pointerdown",outside);document.addEventListener("keydown",escape);
+    return () => {document.removeEventListener("pointerdown",outside);document.removeEventListener("keydown",escape);};
+  },[]);
+  return <div ref={ref} className="guest-warning" onPointerEnter={e => {if(e.pointerType === "mouse")setHover(true);}} onPointerLeave={() => setHover(false)}>
+    <button aria-label="ゲストモードの保存について" aria-describedby={pinned || hover ? id : undefined} aria-expanded={pinned || hover} onClick={() => setPinned(v => !v)} onFocus={() => setHover(true)} onBlur={() => setHover(false)}><TriangleAlert size={19}/></button>
+    {(pinned || hover) && <div id={id} role="tooltip" className="guest-warning-popup">ゲストモードはブラウザに保存されているため、データ消失を防ぐにはGoogleアカウント連携を行ってください</div>}
+  </div>;
+}
 const colors = [
   ["標準", ""],
   ["赤", "#ff9393"],
@@ -164,7 +179,6 @@ function Composer({
             <Redo2 size={17} />
           </button>
         </div>
-        <span className="toolbar-hint">文字を選んで、装飾</span>
       </div>
       <div className="body-wrap">
         <EditorContent editor={editor} />
@@ -535,7 +549,7 @@ export default function Page() {
                 <h1>SyncMemo</h1>
                 <button onClick={() => { if (menuRef.current) menuRef.current.open = false; setAccount(true); }}>
                   {mode === "cloud" ? <Cloud size={18}/> : <HardDrive size={18}/>}
-                  {mode === "cloud" ? "Googleアカウント" : "ゲストモード"}
+                  {mode === "cloud" ? "アカウント" : "ゲストモード"}
                 </button>
                 <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={() => {if (menuRef.current) menuRef.current.open = false;}}>プライバシーポリシー</a>
               </div>
@@ -574,6 +588,7 @@ export default function Page() {
             )}
           </nav>
         </div>
+        {mode === "guest" && <div className="sidebar-warning"><GuestWarning/></div>}
       </aside>
       <main className={"workspace " + (!mobile ? "mobile-hidden-editor" : "")}>
         <header className="workspace-header">
@@ -624,7 +639,6 @@ export default function Page() {
         {note ? (
           <article className="document">
             <div className="document-intro">
-              <span className="eyebrow">MY NOTE</span>
               <input
                 className="title-input"
                 aria-label="メモのタイトル"
@@ -640,8 +654,7 @@ export default function Page() {
                 }
               />
               <div className="timestamps">
-                <span>作成 {date(note.created_at)}</span>
-                <span>更新 {date(note.updated_at)}</span>
+                <span>最終更新 {date(note.updated_at)}</span>
               </div>
             </div>
             <Composer
@@ -657,6 +670,7 @@ export default function Page() {
               }
             />
             <footer className="document-footer">
+              {mode === "guest" && <div className="editor-warning"><GuestWarning/></div>}
               <span>
                 {note.plain_text.replace(/\n/g, "").length.toLocaleString()}{" "}
                 文字
