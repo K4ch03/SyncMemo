@@ -6,7 +6,6 @@ import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import {
   Plus,
-  Search,
   ArrowLeft,
   Trash2,
   Bold,
@@ -181,8 +180,20 @@ export default function Page() {
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState<Note[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
   const [sort, setSort] = useState("updated-desc");
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    try { const saved = localStorage.getItem("syncmemo.sort");
+      if (saved && ["updated-desc", "updated-asc", "title-asc", "title-desc"].includes(saved)) setSort(saved);
+    } catch {}
+    const closeOutside = (event: PointerEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) menuRef.current.open = false; };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape" && menuRef.current?.open) { menuRef.current.open = false; menuRef.current.querySelector("summary")?.focus(); } };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", escape);
+    return () => {document.removeEventListener("pointerdown", closeOutside);document.removeEventListener("keydown", escape);};
+  }, []);
+  function changeSort(value: string) { setSort(value); try { localStorage.setItem("syncmemo.sort", value); } catch {} }
+
   const [mobile, setMobile] = useState(false);
   const [account, setAccount] = useState(false);
   const [status, setStatus] = useState("");
@@ -390,68 +401,8 @@ export default function Page() {
       previous?.focus();
     };
   }, [account, deleting, busy]);
-  useEffect(() => {
-    const ctx = (
-      document as Document & {
-        modelContext?: {
-          registerTool: (
-            tool: unknown,
-            options: { signal: AbortSignal },
-          ) => void | Promise<void>;
-        };
-      }
-    ).modelContext;
-    if (!ctx?.registerTool) return;
-    const lifecycle = new AbortController();
-    try {
-      void Promise.resolve(
-        ctx.registerTool(
-          {
-            name: "search_memos",
-            description:
-              "現在のメモ一覧を検索して表示する。保存内容は変更しない。",
-            inputSchema: {
-              type: "object",
-              properties: { query: { type: "string" } },
-              required: ["query"],
-              additionalProperties: false,
-            },
-            annotations: { readOnlyHint: true, untrustedContentHint: true },
-            execute: (input: unknown) => {
-              if (
-                !input ||
-                typeof input !== "object" ||
-                !("query" in input) ||
-                typeof input.query !== "string"
-              )
-                throw new Error("query must be a string");
-              const q = input.query;
-              setQuery(q);
-              setMobile(false);
-              return {
-                matches: notesRef.current
-                  .filter((n) =>
-                    (n.title + " " + n.plain_text)
-                      .toLocaleLowerCase()
-                      .includes(q.toLocaleLowerCase()),
-                  )
-                  .map((n) => ({ id: n.id, title: n.title || "無題のメモ" })),
-              };
-            },
-          },
-          { signal: lifecycle.signal },
-        ),
-      ).catch(() => {});
-    } catch {}
-    return () => lifecycle.abort();
-  }, []);
   const note = notes.find((n) => n.id === selected);
-  const list = notes
-    .filter((n) =>
-      (n.title + " " + n.plain_text)
-        .toLocaleLowerCase()
-        .includes(query.toLocaleLowerCase()),
-    )
+  const list = [...notes]
     .sort((a, b) => {
       const asc = sort.endsWith("asc");
       const n = sort.startsWith("title")
@@ -572,70 +523,38 @@ export default function Page() {
     stage(n);
     setSelected(n.id);
     setMobile(true);
-    setQuery("");
   }
   return (
     <div className="app-shell">
       <aside className={"sidebar " + (mobile ? "mobile-hidden" : "")}>
-        <header className="brand">
-          <span className="brand-mark">
-            <NotebookPen size={23} />
-          </span>
-          <h1>
-            余白<span>MEMO</span>
-          </h1>
-          <span className="edition">PRIVATE NOTES</span>
-        </header>
         <div className="sidebar-main">
-          <div className="list-heading">
-            <h2>
-              すべてのメモ <span>{notes.length}</span>
-            </h2>
-            <button
-              className="add-icon"
-              aria-label="メモを新規作成"
-              onClick={add}
-              disabled={mode === "loading"}
-            >
-              <Plus size={22} />
-            </button>
-          </div>
-          <label className="search">
-            <Search size={17} />
-            <input
-              placeholder="メモを検索"
-              aria-label="メモを検索"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {query && (
-              <button aria-label="検索をクリア" onClick={() => setQuery("")}>
-                <X size={15} />
-              </button>
-            )}
-          </label>
-          <div className="sort-row">
-            <span>{query ? `${list.length} 件の検索結果` : "メモ一覧"}</span>
-            <select
-              aria-label="メモの並び替え"
-              value={sort}
-              onChange={(e) => setSort(e.target.value)}
-            >
+          <div className="sidebar-controls">
+            <details className="app-menu" ref={menuRef}>
+              <summary aria-label="アプリメニュー">···</summary>
+              <div className="app-menu-panel">
+                <h1>SyncMemo</h1>
+                <button onClick={() => { if (menuRef.current) menuRef.current.open = false; setAccount(true); }}>
+                  {mode === "cloud" ? <Cloud size={18}/> : <HardDrive size={18}/>}
+                  {mode === "cloud" ? "Googleアカウント" : "ゲストモード"}
+                </button>
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" onClick={() => {if (menuRef.current) menuRef.current.open = false;}}>プライバシーポリシー</a>
+              </div>
+            </details>
+            <select aria-label="メモの並び替え" value={sort} onChange={(e) => changeSort(e.target.value)}>
               <option value="updated-desc">更新日時 · 新しい順</option>
               <option value="updated-asc">更新日時 · 古い順</option>
               <option value="title-asc">タイトル · 昇順</option>
               <option value="title-desc">タイトル · 降順</option>
             </select>
+            <button className="add-icon" aria-label="メモを新規作成" onClick={add} disabled={mode === "loading"}><Plus size={22}/></button>
           </div>
           <nav className="notes-list" aria-label="メモ一覧">
             {mode === "loading" ? (
               <p className="list-empty">読み込み中…</p>
             ) : list.length === 0 ? (
               <div className="list-empty">
-                {query
-                  ? "一致するメモがありません。"
-                  : "まだメモはありません。"}
-                {!query && <button onClick={add}>最初のメモを書く</button>}
+                まだメモはありません。
+                <button onClick={add}>最初のメモを書く</button>
               </div>
             ) : (
               list.map((n) => (
@@ -655,23 +574,6 @@ export default function Page() {
             )}
           </nav>
         </div>
-        <footer className="account-footer">
-          <a className="privacy-link" href="/privacy" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
-          <button className="account-button" onClick={() => setAccount(true)}>
-            <span className="avatar">
-              {mode === "cloud" ? <Cloud size={19} /> : <HardDrive size={19} />}
-            </span>
-            <span>
-              <strong>
-                {mode === "cloud" ? "マイアカウント" : "ゲストモード"}
-              </strong>
-              <small>
-                {mode === "cloud" ? "クラウドに保存" : "このブラウザに保存"}
-              </small>
-            </span>
-            <ChevronDown size={16} />
-          </button>
-        </footer>
       </aside>
       <main className={"workspace " + (!mobile ? "mobile-hidden-editor" : "")}>
         <header className="workspace-header">
@@ -686,7 +588,7 @@ export default function Page() {
             <span>メモ帳</span>
             <span className="slash">/</span>
             <strong>
-              {note?.title || (note ? "無題のメモ" : "すべてのメモ")}
+              {note?.title || (note ? "無題のメモ" : "")}
             </strong>
           </div>
           <div className="document-actions">
@@ -818,12 +720,12 @@ export default function Page() {
               {mode === "cloud" ? <Cloud /> : <HardDrive />}
             </div>
             <h2 id="account-title">
-              {mode === "cloud" ? "アカウント" : "ゲストとして利用中"}
+              {mode === "cloud" ? "Googleアカウントでログイン中" : "ゲストとして利用中"}
             </h2>
-            <p>
+            <p className="account-description">
               {mode === "cloud"
                 ? email
-                : "メモはこのブラウザだけに保存されます。別の端末とは同期されず、サイトデータを削除するとメモも消えます。"}
+                : "メモはこのブラウザだけに保存されます。\n長期保存や別端末同期を使いたい場合はGoogleログインを行ってください"}
             </p>
             {mode === "cloud" ? (
               <>
@@ -855,9 +757,8 @@ export default function Page() {
               <>
                 {cloud ? (
                   <div className="login-options">
-                    <a className="privacy-link" href="/privacy" target="_blank" rel="noopener noreferrer">ログイン前にプライバシーポリシーを確認</a>
+                    <a className="privacy-link" href="/privacy" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
                     <button className="primary" onClick={() => void login()} disabled={busy}>Googleでログイン</button>
-                    <p className="login-help">スマホとPCでは、同じログイン方法・アカウントを使ってください。</p>
                   </div>
                 ) : (
                   <div className="setup-notice">

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "余白 | メモ帳",
+  title: "SyncMemo | メモ帳",
   description: "思いついたことを、すぐに。自分のためのシンプルなメモ帳。",
   icons: { icon: "/favicon.svg" },
 };
