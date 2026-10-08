@@ -143,7 +143,7 @@ function Composer({
     return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
   },[palette]);
   const fontSize=Number.parseFloat(editor?.getAttributes('textStyle').fontSize || '16') || 16;
-  const resizeFont=(delta:number)=>{formatChain()?.setFontSize(`${Math.max(8,Math.min(72,fontSize+delta))}px`).run();};
+  const resizeFont=(delta:number)=>{formatChain()?.setFontSize(`${Math.max(8,Math.min(72,fontSize+delta))}px`).restoreRowCaret().run();};
   useEffect(() => {
     if (!editor) return;
     const f = () => {if(editor.isFocused && !toolbarRef.current?.contains(document.activeElement))savedSelection.current={from:editor.state.selection.from,to:editor.state.selection.to};redraw((x) => x + 1);};
@@ -189,12 +189,12 @@ function Composer({
             aria-label="太字"
             aria-pressed={editor?.isActive("bold") ?? false}
             className={editor?.isActive("bold") ? "active" : ""}
-            onClick={() => formatChain()?.toggleBold().run()}
+            onClick={() => formatChain()?.toggleBold().restoreRowCaret().run()}
           >
             <Bold size={18} />
           </button>
-          <button aria-label="取り消し線" title="取り消し線" aria-pressed={editor?.isActive("strike") ?? false} className={editor?.isActive("strike") ? "active" : ""} onClick={() => formatChain()?.toggleStrike().run()}><Strikethrough size={18}/></button>
-          <button aria-label="下線" title="下線" aria-pressed={editor?.isActive("underline") ?? false} className={editor?.isActive("underline") ? "active" : ""} onClick={() => formatChain()?.toggleUnderline().run()}><Underline size={18}/></button>
+          <button aria-label="取り消し線" title="取り消し線" aria-pressed={editor?.isActive("strike") ?? false} className={editor?.isActive("strike") ? "active" : ""} onClick={() => formatChain()?.toggleStrike().restoreRowCaret().run()}><Strikethrough size={18}/></button>
+          <button aria-label="下線" title="下線" aria-pressed={editor?.isActive("underline") ?? false} className={editor?.isActive("underline") ? "active" : ""} onClick={() => formatChain()?.toggleUnderline().restoreRowCaret().run()}><Underline size={18}/></button>
           <div className="color-wrap">
             <button
               data-palette-trigger aria-label="文字色"
@@ -221,7 +221,7 @@ function Composer({
           <button data-palette-trigger aria-label="行の背景色" title="行の背景色" aria-expanded={palette === "band"} onClick={()=>setPalette(palette === "band" ? null : "band")}><LineBackgroundIcon color={editor?.getAttributes("paragraph").bandColor}/><ChevronDown size={12}/></button>
           <button
             aria-label="文字の装飾を解除"
-            onClick={() => formatChain()?.unsetAllMarks().run()}
+            onClick={() => formatChain()?.unsetAllMarks().restoreRowCaret().run()}
           >
             <RemoveFormatting size={18} />
           </button>
@@ -245,15 +245,15 @@ function Composer({
                     title={name}
                     style={{ background: color || "transparent" }}
                     onClick={() => {
-                      if (color) formatChain()?.setColor(color).run();
-                      else formatChain()?.unsetColor().run();
+                      if (color) formatChain()?.setColor(color).restoreRowCaret().run();
+                      else formatChain()?.unsetColor().restoreRowCaret().run();
                       setPalette(null);
                     }}
                   >{!color && <UnsetColor/>}</button>
                 ))}
               </div>
             )}
-            {palette === "background" && <div className="palette background-palette" role="group" aria-label="背景色を選ぶ" onMouseDown={e=>e.preventDefault()}>{[["未指定",""],["赤","#673b42"],["橙","#65462d"],["黄","#615522"],["緑","#344d2c"],["青","#2c4365"],["紫","#503b66"]].map(([name,color]) => <button key={name} aria-label={`背景色：${name}`} title={name} style={{background:color || "transparent"}} onClick={() => {if(color)formatChain()?.setBackgroundColor(color).run();else formatChain()?.unsetBackgroundColor().run();setPalette(null);}}>{!color && <UnsetColor/>}</button>)}</div>}
+            {palette === "background" && <div className="palette background-palette" role="group" aria-label="背景色を選ぶ" onMouseDown={e=>e.preventDefault()}>{[["未指定",""],["赤","#673b42"],["橙","#65462d"],["黄","#615522"],["緑","#344d2c"],["青","#2c4365"],["紫","#503b66"]].map(([name,color]) => <button key={name} aria-label={`背景色：${name}`} title={name} style={{background:color || "transparent"}} onClick={() => {if(color)formatChain()?.setBackgroundColor(color).restoreRowCaret().run();else formatChain()?.unsetBackgroundColor().restoreRowCaret().run();setPalette(null);}}>{!color && <UnsetColor/>}</button>)}</div>}
       {palette === "band" && <div className="palette band-palette" role="group" aria-label="背景帯の色を選ぶ" onMouseDown={e=>e.preventDefault()}>
         <button aria-label="背景帯：未指定" title="未指定" onClick={()=>{selectionChain()?.setLineBand(null).run();setPalette(null);}}><UnsetColor/></button>
         {bandColors.map(([name,color])=><button key={color} aria-label={`背景帯：${name}`} title={name} style={{background:color}} onClick={()=>{selectionChain()?.setLineBand(color).run();setPalette(null);}}/>)}
@@ -295,31 +295,42 @@ export default function Page() {
   function changeSort(value: string) { setSort(value); try { localStorage.setItem("syncmemo.sort", value); } catch {} }
 
   const [mobile, setMobile] = useState(false);
+  const rememberEditor=(id:string|null)=>{try{if(id)sessionStorage.setItem("linqeditor.activeNote",id);else sessionStorage.removeItem("linqeditor.activeNote");}catch{}};
   useEffect(() => {
-    const restore = () => {
-      const view=memoView(window.history.state,window.location.hash);
-      // Missing router state is not an instruction to leave the editor.
-      if(!view)return;
-      setMobile(view.kind === "note");if(view.kind === "note")setSelected(view.id);
+    const initial=memoView(window.history.state,window.location.hash);
+    let id=initial?.kind === "note"?initial.id:null;
+    if(!initial){try{id=sessionStorage.getItem("linqeditor.activeNote");}catch{}}
+    if(id){setSelected(id);setMobile(true);}
+    const restore=(event:PopStateEvent)=>{
+      // Only our explicit history entries can navigate away from an editor.
+      // Hash changes and incomplete/router-generated states do not close it.
+      if(!event.state?.linqEditorEntry)return;
+      const view=memoView(event.state,window.location.hash);
+      if(view?.kind === "note"){rememberEditor(view.id);setSelected(view.id);setMobile(true);}
+      else if(view?.kind === "list"){rememberEditor(null);setMobile(false);}
     };
-    restore();window.addEventListener("popstate",restore);window.addEventListener("hashchange",restore);
-    return ()=>{window.removeEventListener("popstate",restore);window.removeEventListener("hashchange",restore);};
+    window.addEventListener("popstate",restore);
+    return ()=>window.removeEventListener("popstate",restore);
   },[]);
   function openEditor(id:string) {
+    rememberEditor(id);
     if(window.matchMedia("(max-width: 700px)").matches) {
       const view=memoView(window.history.state,window.location.hash);
       const url=new URL(window.location.href);url.hash=`note=${id}`;
-      if(view?.kind === "note")window.history.replaceState({...window.history.state,syncMemoNote:id,syncMemoView:"note"},"",url);
+      if(view?.kind === "note")window.history.replaceState({...window.history.state,syncMemoNote:id,syncMemoView:"note",linqEditorEntry:true},"",url);
       else {
-        window.history.replaceState({...window.history.state,syncMemoNote:null,syncMemoView:"list"},"");
-        window.history.pushState({...window.history.state,syncMemoNote:id,syncMemoView:"note",syncMemoPushed:true},"",url);
+        const listURL=new URL(window.location.href);listURL.hash="notes";
+        window.history.replaceState({...window.history.state,syncMemoNote:null,syncMemoView:"list",syncMemoPushed:false,linqEditorEntry:true},"",listURL);
+        window.history.pushState({...window.history.state,syncMemoNote:id,syncMemoView:"note",syncMemoPushed:true,linqEditorEntry:true},"",url);
       }
     }
     setMobile(true);
   }
   function backToList() {
-    if(window.history.state?.syncMemoPushed && memoView(window.history.state,window.location.hash)?.kind === "note")window.history.back();
-    else {const url=new URL(window.location.href);url.hash="notes";window.history.replaceState({...window.history.state,syncMemoNote:null,syncMemoView:"list",syncMemoPushed:false},"",url);setMobile(false);}
+    rememberEditor(null);
+    setMobile(false);
+    if(window.history.state?.syncMemoPushed && window.history.state?.linqEditorEntry && memoView(window.history.state,window.location.hash)?.kind === "note")window.history.back();
+    else {const url=new URL(window.location.href);url.hash="notes";window.history.replaceState({...window.history.state,syncMemoNote:null,syncMemoView:"list",syncMemoPushed:false,linqEditorEntry:true},"",url);}
   }
 
   const [folderDialog,setFolderDialog]=useState<{folder:Folder}|null>(null);
@@ -372,7 +383,7 @@ export default function Page() {
         }
         apply(data);
         setSelected(
-          data.find(n => {const view=memoView(window.history.state,window.location.hash);return view?.kind === "note" && n.id === view.id;})?.id ??
+          data.find(n => {const view=memoView(window.history.state,window.location.hash);if(view?.kind === "note")return n.id === view.id;try{return !view && n.id === sessionStorage.getItem("linqeditor.activeNote");}catch{return false;}})?.id ??
           [...data].sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]?.id ?? null,
         );
       } catch (e) {
