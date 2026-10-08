@@ -467,7 +467,7 @@ export default function Page() {
     clearTimeout(timers.current.get(n.id));
     timers.current.set(
       n.id,
-      setTimeout(() => void save(n.id), mode === "guest" ? 100 : 5000),
+      setTimeout(() => void save(n.id), 5000),
     );
   }
   useEffect(() => {
