@@ -972,3 +972,10 @@ button svg {
  .body-wrap.toolbar-bottom { padding-bottom:48px; }
  .toolbar-shell.dock-top { position:relative; }
 }
+/* Stable saved timestamp and centered guest warning. */
+.header-updated { display:flex; align-items:center; flex-wrap:wrap; gap:0 4px; }
+.saved-date { display:inline-block; width:19ch; white-space:nowrap; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-variant-numeric:tabular-nums; }
+.document-actions .save-status { width:4.5em; flex-shrink:0; justify-content:center; }
+.header-warning { align-self:center; }
+.header-warning .guest-warning { display:flex; align-items:center; justify-content:center; }
+.document-actions .header-warning .guest-warning > button { display:flex; align-items:center; justify-content:center; padding:0; line-height:1; }

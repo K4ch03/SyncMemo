@@ -275,6 +275,7 @@ export default function Page() {
   const [editingTitle,setEditingTitle]=useState(false);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [editingFolderId,setEditingFolderId]=useState<string|null>(null);
+  const [savedDates,setSavedDates]=useState<Record<string,string>>({});
   const [notes, setNotes] = useState<Note[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [sort, setSort] = useState("updated-desc");
@@ -356,6 +357,7 @@ export default function Page() {
   const apply = (data: Note[]) => {
     data.forEach((n) => revisions.current.set(n.id, n.revision));
     notesRef.current = data;
+    setSavedDates(Object.fromEntries(data.map(n=>[n.id,n.updated_at])));
     setNotes(data);
   };
   useEffect(() => {
@@ -432,6 +434,7 @@ export default function Page() {
         revisions.current.set(id, saved.revision);
         if (pending.current.get(id) === n) {
           pending.current.delete(id);
+          setSavedDates(prev=>({...prev,[id]:saved.updated_at}));
           setNotes((prev) =>
             prev.map((x) =>
               x.id === id
@@ -464,7 +467,7 @@ export default function Page() {
     clearTimeout(timers.current.get(n.id));
     timers.current.set(
       n.id,
-      setTimeout(() => void save(n.id), mode === "guest" ? 100 : 600),
+      setTimeout(() => void save(n.id), mode === "guest" ? 100 : 5000),
     );
   }
   useEffect(() => {
@@ -768,7 +771,7 @@ export default function Page() {
           <button className="back" aria-label="メモ一覧に戻る" onClick={backToList}><ArrowLeft size={19}/></button>
           <div className="document-actions">
             {mode === "guest" && <div className="header-warning"><GuestWarning/></div>}
-            {note && <span className="header-updated">最終更新 {date(note.updated_at)}</span>}
+            {note && <span className="header-updated"><span>最終更新</span><time className="saved-date" dateTime={savedDates[note.id]}>{savedDates[note.id] ? date(savedDates[note.id]) : "—"}</time></span>}
             <span className="save-status" role="status" aria-label={status}>
               {status === "保存しました" ? <Check size={14} aria-hidden="true"/> : status}
             </span>
