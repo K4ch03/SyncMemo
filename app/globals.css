@@ -979,3 +979,5 @@ button svg {
 .header-warning { align-self:center; }
 .header-warning .guest-warning { display:flex; align-items:center; justify-content:center; }
 .document-actions .header-warning .guest-warning > button { display:flex; align-items:center; justify-content:center; padding:0; line-height:1; }
+/* Keep the paragraph band edge fixed while giving its text a small left inset. */
+.prose-editor p[data-band-color] { padding-inline-start: 4px; }

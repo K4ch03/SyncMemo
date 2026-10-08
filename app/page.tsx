@@ -186,6 +186,7 @@ function Composer({
           </button>
         </div>
         <div className="tool-group">
+          <button data-palette-trigger aria-label="行の背景色" title="行の背景色" aria-expanded={palette === "band"} onClick={()=>setPalette(palette === "band" ? null : "band")}><LineBackgroundIcon color={editor?.getAttributes("paragraph").bandColor}/><ChevronDown size={12}/></button>
           <button
             aria-label="太字"
             aria-pressed={editor?.isActive("bold") ?? false}
@@ -219,7 +220,6 @@ function Composer({
             <button data-palette-trigger aria-label="背景色" title="背景色" aria-expanded={palette === "background"} onClick={() => setPalette(palette === "background" ? null : "background")}><span className="background-a">A</span><ChevronDown size={12}/></button>
 
           </div>
-          <button data-palette-trigger aria-label="行の背景色" title="行の背景色" aria-expanded={palette === "band"} onClick={()=>setPalette(palette === "band" ? null : "band")}><LineBackgroundIcon color={editor?.getAttributes("paragraph").bandColor}/><ChevronDown size={12}/></button>
           <button
             aria-label="文字の装飾を解除"
             onClick={() => formatChain()?.unsetAllMarks().restoreRowCaret().run()}
