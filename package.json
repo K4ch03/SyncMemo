@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx tests/line-band.ts && node --import tsx tests/editor-sync.ts && node --import tsx tests/storage.ts && node tests/security.mjs"
+    "test": "node --import tsx tests/row-format.ts && node --import tsx tests/line-band.ts && node --import tsx tests/editor-sync.ts && node --import tsx tests/storage.ts && node tests/security.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",

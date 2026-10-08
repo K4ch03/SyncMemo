@@ -1,4 +1,8 @@
 "use client";
+import {RowFormat} from "@/lib/row-format";
+import LineBackgroundIcon from "./LineBackgroundIcon";
+import {useMobileToolbar} from "./useMobileToolbar";
+import type {CSSProperties} from "react";
 import UnsetColor from "./UnsetColor";
 import {LineBand,bandColors} from "@/lib/line-band";
 import {memoView} from "@/lib/mobile-navigation";
@@ -10,7 +14,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { TextStyle, BackgroundColor, FontSize } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import {
-  PanelTop,
+  ArrowUpDown,
   TriangleAlert,
   Minus,
   Plus,
@@ -100,6 +104,7 @@ function Composer({
       BackgroundColor,
       FontSize,
       LineBand,
+      RowFormat,
     ],
     immediatelyRender: false,
     content: note.body,
@@ -116,6 +121,16 @@ function Composer({
   const [, redraw] = useState(0);
   const [palette, setPalette] = useState<"color" | "background" | "band" | null>(null);
   const toolbarRef=useRef<HTMLDivElement>(null);
+  const {dock,position,toggle}=useMobileToolbar(toolbarRef);
+  const savedSelection=useRef<{from:number;to:number}|null>(null);
+  const captureSelection=()=>{if(editor && !palette && (editor.isFocused || !savedSelection.current))savedSelection.current={from:editor.state.selection.from,to:editor.state.selection.to};};
+  const selectionChain=()=>{
+    if(!editor)return undefined;
+    const range=savedSelection.current;
+    const chain=editor.chain().focus();
+    return range?chain.setTextSelection({from:Math.min(range.from,editor.state.doc.content.size),to:Math.min(range.to,editor.state.doc.content.size)}):chain;
+  };
+  const formatChain=()=>selectionChain()?.selectRowIfEmpty();
   useEffect(()=>{
     if(!palette)return;
     const outside=(e:PointerEvent)=>{
@@ -128,10 +143,10 @@ function Composer({
     return()=>{document.removeEventListener('pointerdown',outside);document.removeEventListener('keydown',escape);};
   },[palette]);
   const fontSize=Number.parseFloat(editor?.getAttributes('textStyle').fontSize || '16') || 16;
-  const resizeFont=(delta:number)=>{editor?.chain().focus().setFontSize(`${Math.max(8,Math.min(72,fontSize+delta))}px`).run();};
+  const resizeFont=(delta:number)=>{formatChain()?.setFontSize(`${Math.max(8,Math.min(72,fontSize+delta))}px`).run();};
   useEffect(() => {
     if (!editor) return;
-    const f = () => redraw((x) => x + 1);
+    const f = () => {if(editor.isFocused && !toolbarRef.current?.contains(document.activeElement))savedSelection.current={from:editor.state.selection.from,to:editor.state.selection.to};redraw((x) => x + 1);};
     editor.on("transaction", f);
     return () => {
       editor.off("transaction", f);
@@ -150,8 +165,9 @@ function Composer({
   }, [editor, note.body]);
   return (
     <>
-      <div className="toolbar-shell" ref={toolbarRef}>
+      <div className={`toolbar-shell dock-${dock}`} ref={toolbarRef} onPointerDownCapture={captureSelection} onMouseDown={e=>{if((e.target as HTMLElement).closest('button'))e.preventDefault();}} style={{'--toolbar-top':`${position.top}px`,'--toolbar-left':`${position.left}px`,'--toolbar-width':position.width?`${position.width}px`:'100%'} as CSSProperties}>
       <div className="toolbar" onMouseDown={e => { if ((e.target as HTMLElement).closest("button")) e.preventDefault(); }}>
+        <button className="toolbar-dock-toggle" aria-label={dock==='bottom'?'ツールバーを上に移動':'ツールバーを下に移動'} title="ツールバーの上下を切り替え" onClick={toggle}><ArrowUpDown size={18}/></button>
         <div className="tool-group">
           <button
             aria-label="元に戻す"
@@ -173,12 +189,12 @@ function Composer({
             aria-label="太字"
             aria-pressed={editor?.isActive("bold") ?? false}
             className={editor?.isActive("bold") ? "active" : ""}
-            onClick={() => editor?.chain().focus().toggleBold().run()}
+            onClick={() => formatChain()?.toggleBold().run()}
           >
             <Bold size={18} />
           </button>
-          <button aria-label="取り消し線" title="取り消し線" aria-pressed={editor?.isActive("strike") ?? false} className={editor?.isActive("strike") ? "active" : ""} onClick={() => editor?.chain().focus().toggleStrike().run()}><Strikethrough size={18}/></button>
-          <button aria-label="下線" title="下線" aria-pressed={editor?.isActive("underline") ?? false} className={editor?.isActive("underline") ? "active" : ""} onClick={() => editor?.chain().focus().toggleUnderline().run()}><Underline size={18}/></button>
+          <button aria-label="取り消し線" title="取り消し線" aria-pressed={editor?.isActive("strike") ?? false} className={editor?.isActive("strike") ? "active" : ""} onClick={() => formatChain()?.toggleStrike().run()}><Strikethrough size={18}/></button>
+          <button aria-label="下線" title="下線" aria-pressed={editor?.isActive("underline") ?? false} className={editor?.isActive("underline") ? "active" : ""} onClick={() => formatChain()?.toggleUnderline().run()}><Underline size={18}/></button>
           <div className="color-wrap">
             <button
               data-palette-trigger aria-label="文字色"
@@ -202,10 +218,10 @@ function Composer({
             <button data-palette-trigger aria-label="背景色" title="背景色" aria-expanded={palette === "background"} onClick={() => setPalette(palette === "background" ? null : "background")}><span className="background-a">A</span><ChevronDown size={12}/></button>
 
           </div>
-          <button data-palette-trigger aria-label="背景帯" title="背景帯" aria-expanded={palette === "band"} onClick={()=>setPalette(palette === "band" ? null : "band")}><PanelTop size={18}/><ChevronDown size={12}/></button>
+          <button data-palette-trigger aria-label="行の背景色" title="行の背景色" aria-expanded={palette === "band"} onClick={()=>setPalette(palette === "band" ? null : "band")}><LineBackgroundIcon color={editor?.getAttributes("paragraph").bandColor}/><ChevronDown size={12}/></button>
           <button
             aria-label="文字の装飾を解除"
-            onClick={() => editor?.chain().focus().unsetAllMarks().run()}
+            onClick={() => formatChain()?.unsetAllMarks().run()}
           >
             <RemoveFormatting size={18} />
           </button>
@@ -229,21 +245,21 @@ function Composer({
                     title={name}
                     style={{ background: color || "transparent" }}
                     onClick={() => {
-                      if (color) editor?.chain().focus().setColor(color).run();
-                      else editor?.chain().focus().unsetColor().run();
+                      if (color) formatChain()?.setColor(color).run();
+                      else formatChain()?.unsetColor().run();
                       setPalette(null);
                     }}
                   >{!color && <UnsetColor/>}</button>
                 ))}
               </div>
             )}
-            {palette === "background" && <div className="palette background-palette" role="group" aria-label="背景色を選ぶ" onMouseDown={e=>e.preventDefault()}>{[["未指定",""],["赤","#673b42"],["橙","#65462d"],["黄","#615522"],["緑","#344d2c"],["青","#2c4365"],["紫","#503b66"]].map(([name,color]) => <button key={name} aria-label={`背景色：${name}`} title={name} style={{background:color || "transparent"}} onClick={() => {if(color)editor?.chain().focus().setBackgroundColor(color).run();else editor?.chain().focus().unsetBackgroundColor().run();setPalette(null);}}>{!color && <UnsetColor/>}</button>)}</div>}
+            {palette === "background" && <div className="palette background-palette" role="group" aria-label="背景色を選ぶ" onMouseDown={e=>e.preventDefault()}>{[["未指定",""],["赤","#673b42"],["橙","#65462d"],["黄","#615522"],["緑","#344d2c"],["青","#2c4365"],["紫","#503b66"]].map(([name,color]) => <button key={name} aria-label={`背景色：${name}`} title={name} style={{background:color || "transparent"}} onClick={() => {if(color)formatChain()?.setBackgroundColor(color).run();else formatChain()?.unsetBackgroundColor().run();setPalette(null);}}>{!color && <UnsetColor/>}</button>)}</div>}
       {palette === "band" && <div className="palette band-palette" role="group" aria-label="背景帯の色を選ぶ" onMouseDown={e=>e.preventDefault()}>
-        <button aria-label="背景帯：未指定" title="未指定" onClick={()=>{editor?.chain().focus().setLineBand(null).run();setPalette(null);}}><UnsetColor/></button>
-        {bandColors.map(([name,color])=><button key={color} aria-label={`背景帯：${name}`} title={name} style={{background:color}} onClick={()=>{editor?.chain().focus().setLineBand(color).run();setPalette(null);}}/>)}
+        <button aria-label="背景帯：未指定" title="未指定" onClick={()=>{selectionChain()?.setLineBand(null).run();setPalette(null);}}><UnsetColor/></button>
+        {bandColors.map(([name,color])=><button key={color} aria-label={`背景帯：${name}`} title={name} style={{background:color}} onClick={()=>{selectionChain()?.setLineBand(color).run();setPalette(null);}}/>)}
       </div>}
       </div>
-      <div className="body-wrap">
+      <div className={`body-wrap toolbar-${dock}`}>
         <EditorContent editor={editor} style={{zoom: scale / 100}} />
         {!note.plain_text && (
           <span className="placeholder" style={{zoom: scale / 100}}>ここから、書きはじめる。</span>
@@ -712,7 +728,7 @@ export default function Page() {
             <details className="app-menu" ref={menuRef}>
               <summary aria-label="アプリメニュー">···</summary>
               <div className="app-menu-panel">
-                <h1>SyncMemo</h1>
+                <h1>LinqEditor</h1>
                 <button onClick={() => { if (menuRef.current) menuRef.current.open = false; setAccount(true); }}>
                   {mode === "cloud" ? <Cloud size={18}/> : <HardDrive size={18}/>}
                   {mode === "cloud" ? "アカウント" : "ゲストモード"}

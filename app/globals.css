@@ -956,3 +956,13 @@ button svg {
 .line-band-text { background:var(--line-band-color); border-radius:3px; box-shadow:3px 0 0 var(--line-band-color),-3px 0 0 var(--line-band-color); -webkit-box-decoration-break:clone; box-decoration-break:clone; }
 .font-stepper { gap:2px; }
 .font-stepper output { min-width:40px; text-align:center; font-size:13px; font-variant-numeric:tabular-nums; }
+/* Full-width paragraph backgrounds, unchanged paragraph metrics. */
+.prose-editor p[data-band-color] { border-radius:0; }
+.toolbar-dock-toggle { display:none; }
+@media(max-width:700px) {
+ .toolbar-dock-toggle { display:grid; place-items:center; width:32px; min-width:32px; height:36px; }
+ .toolbar-shell.dock-bottom { position:fixed; z-index:55; top:var(--toolbar-top); left:var(--toolbar-left); width:var(--toolbar-width); padding:2px 8px; background:var(--panel); border-top:1px solid var(--line); }
+ .toolbar-shell.dock-bottom > .palette { top:auto; bottom:calc(100% + 4px); max-height:45dvh; overflow-y:auto; }
+ .body-wrap.toolbar-bottom { padding-bottom:48px; }
+ .toolbar-shell.dock-top { position:relative; }
+}

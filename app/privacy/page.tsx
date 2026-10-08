@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-export const metadata: Metadata = { title: 'プライバシーポリシー | SyncMemo' };
+export const metadata: Metadata = { title: 'プライバシーポリシー | LinqEditor' };
 export default function PrivacyPage() {
  const operator = process.env.PRIVACY_OPERATOR_NAME || '本サービス運営者';
  const contact = process.env.PRIVACY_CONTACT_EMAIL || '';
