@@ -2,6 +2,7 @@
 import {RowFormat} from "@/lib/row-format";
 import LineBackgroundIcon from "./LineBackgroundIcon";
 import {useMobileToolbar} from "./useMobileToolbar";
+import {useSinglePane} from "./useSinglePane";
 import type {CSSProperties} from "react";
 import UnsetColor from "./UnsetColor";
 import {LineBand,bandColors} from "@/lib/line-band";
@@ -295,6 +296,7 @@ export default function Page() {
   function changeSort(value: string) { setSort(value); try { localStorage.setItem("syncmemo.sort", value); } catch {} }
 
   const [mobile, setMobile] = useState(false);
+  const singlePane = useSinglePane();
   const rememberEditor=(id:string|null)=>{try{if(id)sessionStorage.setItem("linqeditor.activeNote",id);else sessionStorage.removeItem("linqeditor.activeNote");}catch{}};
   useEffect(() => {
     const initial=memoView(window.history.state,window.location.hash);
@@ -314,7 +316,7 @@ export default function Page() {
   },[]);
   function openEditor(id:string) {
     rememberEditor(id);
-    if(window.matchMedia("(max-width: 700px)").matches) {
+    if(singlePane ?? window.matchMedia("(max-width: 700px)").matches) {
       const view=memoView(window.history.state,window.location.hash);
       const url=new URL(window.location.href);url.hash=`note=${id}`;
       if(view?.kind === "note")window.history.replaceState({...window.history.state,syncMemoNote:id,syncMemoView:"note",linqEditorEntry:true},"",url);
@@ -732,8 +734,8 @@ export default function Page() {
     openEditor(n.id);
   }
   return (
-    <div className="app-shell">
-      <aside className={"sidebar " + (mobile ? "mobile-hidden" : "")}>
+    <div className="app-shell" data-single-pane={singlePane === null ? undefined : singlePane} data-view={mobile ? 'note' : 'list'}>
+      <aside className={"sidebar " + (mobile ? "mobile-hidden" : "")} style={singlePane && mobile ? {display:'none'} : undefined}>
         <div className="sidebar-main">
           <div className="sidebar-controls">
             <details className="app-menu" ref={menuRef}>
@@ -761,7 +763,7 @@ export default function Page() {
         </div>
         {mode === "guest" && <div className="sidebar-warning"><GuestWarning/></div>}
       </aside>
-      <main className={"workspace " + (!mobile ? "mobile-hidden-editor" : "")}>
+      <main className={"workspace " + (!mobile ? "mobile-hidden-editor" : "")} style={singlePane && !mobile ? {display:'none'} : undefined} onFocusCapture={event=>{if(event.target.closest('.title-input, .prose-editor'))setMobile(true);}}>
         <header className="workspace-header">
           <button className="back" aria-label="メモ一覧に戻る" onClick={backToList}><ArrowLeft size={19}/></button>
           <div className="document-actions">

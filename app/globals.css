@@ -664,10 +664,10 @@ button svg {
     width: 100%;
     border: 0;
   }
-  .sidebar.mobile-hidden {
+  .app-shell:not([data-single-pane="false"]) .sidebar.mobile-hidden {
     display: none;
   }
-  .workspace.mobile-hidden-editor {
+  .app-shell:not([data-single-pane="false"]) .workspace.mobile-hidden-editor {
     display: none;
   }
   .workspace {
@@ -785,6 +785,12 @@ button svg {
     font-size: 23px;
   }
 }
+
+/* Pane selection is application state, independent of keyboard viewport size. */
+.app-shell[data-single-pane="true"] { min-height: 0; overflow: hidden; }
+.app-shell[data-single-pane="true"] > .workspace { width:100%; min-width:0; }
+.app-shell[data-single-pane="true"] > .sidebar { width:100%; border:0; }
+.app-shell[data-single-pane="true"] .back { display:grid; place-items:center; }
 
 .login-options { display: grid; gap: 12px; margin-top: 22px; }
 .login-options .primary, .login-options .secondary { width: 100%; }
