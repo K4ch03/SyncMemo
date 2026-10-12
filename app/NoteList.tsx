@@ -3,10 +3,12 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronRight, Folder as FolderIcon, Plus, Pencil, Trash2, MoreHorizontal } from "lucide-react";
 import InlineFolderName from "./InlineFolderName";
 import FolderColor, {foreground} from "./FolderColor";
+import { groupByKana } from "@/lib/kana-groups";
 import type { Folder, Note } from "@/lib/store";
 
 type Props = {
  notes: Note[]; folders: Folder[]; selected: string | null; disabled: boolean;
+ viewMode?: "folders" | "kana";
  onOpen: (id: string) => void; onAdd: (folder?: string) => void;
  onColor: (folder: Folder, color: string | null) => void;
  editingFolderId:string|null; onRename:(folder:Folder,name:string)=>void; onCancelRename:()=>void;
@@ -30,6 +32,7 @@ export default function NoteList(props: Props) {
  const [expanded,setExpanded] = useState<Set<string>>(new Set());
  const [drag,setDrag] = useState<{id:string;x:number;y:number} | null>(null);
  const [target,setTarget] = useState<string | null>(null);
+ const [pressed,setPressed] = useState<string | null>(null);
  const [announcement,setAnnouncement] = useState("");
  const root = useRef<HTMLElement>(null);
  const current = useRef(props); current.current=props;
@@ -39,6 +42,12 @@ export default function NoteList(props: Props) {
  const dragId = useRef<string | null>(null);
  const destination = useRef<string | null>(null);
  const frame = useRef(0);
+ const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+ const pulse = (id:string) => {
+   setPressed(id);
+   if(pressTimer.current)clearTimeout(pressTimer.current);
+   pressTimer.current=setTimeout(()=>setPressed(null),120);
+ };
  const pick = (x:number,y:number) => {
    point.current={x,y};
    const el=document.elementFromPoint(x,y)?.closest<HTMLElement>("[data-folder-target]");
@@ -89,9 +98,10 @@ export default function NoteList(props: Props) {
    window.addEventListener('blur',cancel);
    return()=>{clearTimeout(timer);cancelAnimationFrame(frame.current);el.removeEventListener('touchstart',down);el.removeEventListener('touchmove',move);el.removeEventListener('touchend',up);el.removeEventListener('touchcancel',cancel);el.removeEventListener('contextmenu',context);document.removeEventListener('keydown',key);window.removeEventListener('blur',cancel);};
  },[]);
- const card=(n:Note)=><button key={n.id} data-note-id={n.id} className={`note-card ${props.selected===n.id?'selected':''} ${drag?.id===n.id?'dragging':''}`} disabled={props.disabled}
+ useEffect(()=>()=>{if(pressTimer.current)clearTimeout(pressTimer.current);},[]);
+ const card=(n:Note)=><button key={n.id} data-note-id={n.id} className={`note-card ${props.selected===n.id?'selected':''} ${drag?.id===n.id?'dragging':''} ${pressed===`note:${n.id}`?'tap-pressed':''}`} disabled={props.disabled}
    draggable={!props.disabled}
-   onPointerDown={e=>{e.currentTarget.draggable=e.pointerType === "mouse" && !props.disabled;}}
+   onPointerDown={e=>{e.currentTarget.draggable=e.pointerType === "mouse" && !props.disabled;if(!props.disabled && e.button===0)pulse(`note:${n.id}`);}}
    onDragStart={e=>{e.dataTransfer.setData('text/plain',n.id);e.dataTransfer.effectAllowed='move';begin(n.id,e.clientX,e.clientY);}}
    onDragEnd={stop}
    onClick={()=>{if(Date.now()>suppressClick.current)props.onOpen(n.id);}}
@@ -102,13 +112,18 @@ export default function NoteList(props: Props) {
    onDragOver:(e:React.DragEvent)=>{if(!dragId.current)return;e.preventDefault();e.dataTransfer.dropEffect='move';pick(e.clientX,e.clientY);},
    onDrop:(e:React.DragEvent)=>{if(!dragId.current)return;e.preventDefault();destination.current=id;finish();},
  });
+ const kanaMode=props.viewMode==="kana";
  return <>
  <nav ref={root} className="notes-list folder-list" aria-label="メモ一覧">
+   {kanaMode ? groupByKana(props.notes).map(([heading,items])=><section key={heading} className="kana-section">
+     <h2>{heading}</h2>
+     {items.map(card)}
+   </section>) : <>
    {(props.folders.length>0 || drag) && <button {...drop('')} className={`root-drop ${target===''?'drop-active':''}`} onClick={()=>{if(dragId.current){destination.current='';finish();}}}>フォルダ外</button>}
    {[...props.folders].sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true})).map(f=><section key={f.id} style={colorOf(f)?{background:colorOf(f)!,color:foreground(colorOf(f)!)}:undefined} className={`folder-block ${colorOf(f)?"has-folder-color":""} ${target===f.id?'drop-active':''}`} {...drop(f.id)}>
      <div className="folder-row">
        {props.editingFolderId===f.id ? <div className="folder-inline-wrap"><FolderIcon size={16}/><InlineFolderName name={f.name} onCommit={name=>props.onRename(f,name)} onCancel={props.onCancelRename}/></div> : <>
-       <button className="folder-toggle" aria-expanded={expanded.has(f.id)} onClick={()=>{if(dragId.current){destination.current=f.id;finish();return;}setExpanded(old=>{const next=new Set(old);if(next.has(f.id))next.delete(f.id);else next.add(f.id);return next;});}}>
+       <button className={`folder-toggle ${pressed===`folder:${f.id}`?'tap-pressed':''}`} aria-expanded={expanded.has(f.id)} onPointerDown={e=>{if(!props.disabled && e.button===0)pulse(`folder:${f.id}`);}} onClick={()=>{if(dragId.current){destination.current=f.id;finish();return;}setExpanded(old=>{const next=new Set(old);if(next.has(f.id))next.delete(f.id);else next.add(f.id);return next;});}}>
          <ChevronRight size={14} className={expanded.has(f.id)?'expanded':''}/><FolderIcon size={16}/><span>{f.name}</span>
        </button>
        </>}
@@ -118,6 +133,7 @@ export default function NoteList(props: Props) {
      {expanded.has(f.id) && <div className="folder-notes">{props.notes.filter(n=>n.folder_id===f.id).map(card)}{!props.notes.some(n=>n.folder_id===f.id)&&<p className="folder-empty">メモをここにドロップ</p>}</div>}
    </section>)}
    {props.notes.filter(n=>!n.folder_id || !props.folders.some(f=>f.id===n.folder_id)).map(card)}
+   </>}
    {!props.notes.length && !props.folders.length && <div className="list-empty">まだメモはありません。<button onClick={()=>props.onAdd()} disabled={props.disabled}><Plus size={16}/>最初のメモを書く</button></div>}
  </nav>
  {menu && props.folders.some(f=>f.id===menu) && <div ref={panel} className="folder-menu-panel" role="dialog" aria-label="フォルダの設定" style={menuPosition}>

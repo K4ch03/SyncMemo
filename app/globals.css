@@ -204,6 +204,8 @@ button svg {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.kana-section { margin-bottom: 7px; }
+.kana-section h2 { position: sticky; top: 0; z-index: 1; margin: 0 0 3px; padding: 3px 10px; color: #b5df77; background: var(--bg); border-bottom: 1px solid #2b332b; font-size: 12px; font-weight: 700; }
 .note-card p {
   font-size: 13px;
   color: var(--muted);
@@ -956,6 +958,7 @@ button svg {
  .note-card.selected:hover { background-color:#2d3529; }
  .has-folder-color .note-card.selected:hover { background-color:transparent; }
 }
+.note-card.tap-pressed:not(:disabled), .folder-row .folder-toggle.tap-pressed:not(:disabled) { filter:brightness(1.12); transform:scale(.995); background-image:linear-gradient(#ffffff10,#ffffff10); }
 @media(prefers-reduced-motion:reduce) { .note-card,.folder-row > button,.root-drop { transition:none; } }
 /* Paint behind text without changing glyph positions or paragraph metrics. */
 .prose-editor p[data-band-color] { background:none; border-radius:0; }

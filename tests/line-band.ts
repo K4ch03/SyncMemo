@@ -31,6 +31,13 @@ const roundtrip=editor.schema.nodeFromJSON(JSON.parse(JSON.stringify(editor.getJ
 assert.ok(roundtrip.eq(editor.state.doc));
 editor.commands.setTextSelection(3);editor.commands.splitBandParagraph();
 assert.equal(editor.getJSON().content![1].attrs?.bandColor,null);
+const startEditor=new Editor({element:null,extensions:[StarterKit.configure({italic:false}),TextStyle,Color,BackgroundColor,FontSize,LineBand],content:{type:'doc',content:[{type:'paragraph',attrs:{bandColor:'#31465c'},content:[{type:'text',text:'abc'}]}]}});
+startEditor.commands.setTextSelection(1);
+assert.equal(startEditor.commands.splitBandParagraph(),true);
+assert.equal(startEditor.getJSON().content![0].attrs?.bandColor,null);
+assert.equal(startEditor.getJSON().content![1].attrs?.bandColor,'#31465c');
+assert.equal(startEditor.getText({blockSeparator:''}),'abc');
+startEditor.destroy();
 const id='00000000-0000-4000-8000-000000000001';
 assert.deepEqual(memoView(null,'#note='+id),{kind:'note',id});
 assert.equal(memoView(null,''),null);

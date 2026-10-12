@@ -286,7 +286,7 @@ export default function Page() {
   const menuRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     try { const saved = localStorage.getItem("syncmemo.sort");
-      if (saved && ["updated-desc", "updated-asc", "title-asc", "title-desc"].includes(saved)) setSort(saved);
+      if (saved && ["updated-desc", "updated-asc", "title-asc", "title-desc", "kana"].includes(saved)) setSort(saved);
     } catch {}
     const closeOutside = (event: PointerEvent) => { if (menuRef.current && !menuRef.current.contains(event.target as Node)) menuRef.current.open = false; };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape" && menuRef.current?.open) { menuRef.current.open = false; menuRef.current.querySelector("summary")?.focus(); } };
@@ -558,6 +558,7 @@ export default function Page() {
   const note = notes.find((n) => n.id === selected);
   const list = [...notes]
     .sort((a, b) => {
+      if (sort === "kana") return (a.title || "無題のメモ").localeCompare(b.title || "無題のメモ", "ja", { numeric: true });
       const asc = sort.endsWith("asc");
       const n = sort.startsWith("title")
         ? (a.title || "無題のメモ").localeCompare(
@@ -756,12 +757,13 @@ export default function Page() {
               <option value="updated-asc">更新日時 · 古い順</option>
               <option value="title-asc">タイトル · 昇順</option>
               <option value="title-desc">タイトル · 降順</option>
+              <option value="kana">五十音</option>
             </select>
             <button className="add-icon" aria-label="フォルダを作成" title="フォルダを作成" onClick={()=>void createFolder()} disabled={mode === "loading" || busy}><FolderPlus size={22}/></button>
             <button className="add-icon" aria-label="メモを作成" title="メモを作成" onClick={()=>add()} disabled={mode === "loading" || busy}><FilePlus2 size={22}/></button>
           </div>
           {error && <div className="sidebar-error" role="alert">{error}</div>}
-          {mode === "loading" ? <p className="list-empty">読み込み中…</p> : <NoteList notes={list} folders={folders} selected={selected} disabled={busy} onAdd={add} onColor={(f,color)=>void setFolderColor(f,color)} onOpen={id=>{setSelected(id);openEditor(id);}} editingFolderId={editingFolderId} onRename={(f,name)=>void renameFolder(f,name)} onCancelRename={()=>setEditingFolderId(null)} onFolder={f=>setEditingFolderId(f.id)} onDeleteFolder={showFolderDialog} onMove={moveNote}/>}
+          {mode === "loading" ? <p className="list-empty">読み込み中…</p> : <NoteList notes={list} folders={folders} viewMode={sort === "kana" ? "kana" : "folders"} selected={selected} disabled={busy} onAdd={add} onColor={(f,color)=>void setFolderColor(f,color)} onOpen={id=>{setSelected(id);openEditor(id);}} editingFolderId={editingFolderId} onRename={(f,name)=>void renameFolder(f,name)} onCancelRename={()=>setEditingFolderId(null)} onFolder={f=>setEditingFolderId(f.id)} onDeleteFolder={showFolderDialog} onMove={moveNote}/>}
 
         </div>
         {mode === "guest" && <div className="sidebar-warning"><GuestWarning/></div>}
