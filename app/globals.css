@@ -204,8 +204,9 @@ button svg {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.kana-section { margin-bottom: 7px; }
-.kana-section h2 { position: sticky; top: 0; z-index: 1; margin: 0 0 3px; padding: 3px 10px; color: #b5df77; background: var(--bg); border-bottom: 1px solid #2b332b; font-size: 12px; font-weight: 700; }
+.note-card.kana-note { display:flex; align-items:center; gap:7px; }
+.kana-label { width:18px; flex:0 0 18px; color:#b5df77; font-size:11px; font-weight:700; text-align:center; opacity:.95; }
+.kana-label:empty::before { content:""; }
 .kana-folder { padding-bottom: 2px; }
 .kana-folder .folder-notes { padding-right: 0; }
 .folder-label { cursor: default; }

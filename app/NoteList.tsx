@@ -99,14 +99,14 @@ export default function NoteList(props: Props) {
    return()=>{clearTimeout(timer);cancelAnimationFrame(frame.current);el.removeEventListener('touchstart',down);el.removeEventListener('touchmove',move);el.removeEventListener('touchend',up);el.removeEventListener('touchcancel',cancel);el.removeEventListener('contextmenu',context);document.removeEventListener('keydown',key);window.removeEventListener('blur',cancel);};
  },[]);
  useEffect(()=>()=>{if(pressTimer.current)clearTimeout(pressTimer.current);},[]);
- const card=(n:Note)=><button key={n.id} data-note-id={n.id} className={`note-card ${props.selected===n.id?'selected':''} ${drag?.id===n.id?'dragging':''} ${pressed===`note:${n.id}`?'tap-pressed':''}`} disabled={props.disabled}
+ const card=(n:Note,label?:string)=><button key={n.id} data-note-id={n.id} className={`note-card ${label!==undefined?'kana-note':''} ${props.selected===n.id?'selected':''} ${drag?.id===n.id?'dragging':''} ${pressed===`note:${n.id}`?'tap-pressed':''}`} disabled={props.disabled}
    draggable={!props.disabled}
    onPointerDown={e=>{e.currentTarget.draggable=e.pointerType === "mouse" && !props.disabled;if(!props.disabled && e.button===0)pulse(`note:${n.id}`);}}
    onDragStart={e=>{e.dataTransfer.setData('text/plain',n.id);e.dataTransfer.effectAllowed='move';begin(n.id,e.clientX,e.clientY);}}
    onDragEnd={stop}
    onClick={()=>{if(Date.now()>suppressClick.current)props.onOpen(n.id);}}
    onKeyDown={e=>{if(e.key===' ' && !props.disabled){e.preventDefault();dragId.current=n.id;setDrag({id:n.id,x:0,y:0});setAnnouncement('移動先にTabキーで移動してEnterキーを押してください');}}}
- ><div className="note-title">{n.title || '無題のメモ'}</div></button>;
+ >{label!==undefined && <span className="kana-label" aria-hidden="true">{label}</span>}<div className="note-title">{n.title || '無題のメモ'}</div></button>;
  const drop=(id:string)=>({
    'data-folder-target':id,
    onDragOver:(e:React.DragEvent)=>{if(!dragId.current)return;e.preventDefault();e.dataTransfer.dropEffect='move';pick(e.clientX,e.clientY);},
@@ -114,10 +114,7 @@ export default function NoteList(props: Props) {
  });
  const kanaMode=props.viewMode==="kana";
  const folderExists=(id:string|null|undefined)=>!!id && props.folders.some(f=>f.id===id);
- const kanaGroups=(items:Note[])=>groupByKana(items).map(([heading,notes])=><section key={heading} className="kana-section">
-   <h2>{heading}</h2>
-   {notes.map(card)}
- </section>);
+ const kanaCards=(items:Note[])=>groupByKana(items).flatMap(([heading,notes])=>notes.map((note,index)=>card(note,index===0?heading:"")));
  return <>
  <nav ref={root} className="notes-list folder-list" aria-label="メモ一覧">
    {kanaMode ? <>
@@ -131,12 +128,12 @@ export default function NoteList(props: Props) {
          <button aria-label={`${f.name}にメモを追加`} disabled={props.disabled} onClick={()=>props.onAdd(f.id)}><Plus size={13}/></button>
          <button data-folder-menu aria-label={`${f.name}のメニュー`} aria-expanded={menu===f.id} disabled={props.disabled} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setMenuPosition({left:Math.max(8,Math.min(r.right-264,window.innerWidth-272)),top:Math.max(8,Math.min(r.bottom+4,window.innerHeight-355))});setPreview(null);setMenu(menu===f.id?null:f.id);}}><MoreHorizontal size={15}/></button>
        </div>
-       <div className="folder-notes">{items.length?kanaGroups(items):<p className="folder-empty">メモをここにドロップ</p>}</div>
+       <div className="folder-notes">{items.length?kanaCards(items):<p className="folder-empty">メモをここにドロップ</p>}</div>
      </section>;
    })}
    {props.notes.some(n=>!folderExists(n.folder_id)) && <section className="folder-block kana-folder" {...drop('')}>
      <div className="folder-row"><div className="folder-toggle folder-label"><FolderIcon size={16}/><span>フォルダ外</span></div></div>
-     <div className="folder-notes">{kanaGroups(props.notes.filter(n=>!folderExists(n.folder_id)))}</div>
+     <div className="folder-notes">{kanaCards(props.notes.filter(n=>!folderExists(n.folder_id)))}</div>
    </section>}
    </> : <>
    {(props.folders.length>0 || drag) && <button {...drop('')} className={`root-drop ${target===''?'drop-active':''}`} onClick={()=>{if(dragId.current){destination.current='';finish();}}}>フォルダ外</button>}
@@ -150,9 +147,9 @@ export default function NoteList(props: Props) {
        <button aria-label={`${f.name}にメモを追加`} disabled={props.disabled} onClick={()=>{setExpanded(old=>new Set([...old,f.id]));props.onAdd(f.id);}}><Plus size={13}/></button>
        <button data-folder-menu aria-label={`${f.name}のメニュー`} aria-expanded={menu===f.id} disabled={props.disabled} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setMenuPosition({left:Math.max(8,Math.min(r.right-264,window.innerWidth-272)),top:Math.max(8,Math.min(r.bottom+4,window.innerHeight-355))});setPreview(null);setMenu(menu===f.id?null:f.id);}}><MoreHorizontal size={15}/></button>
      </div>
-     {expanded.has(f.id) && <div className="folder-notes">{props.notes.filter(n=>n.folder_id===f.id).map(card)}{!props.notes.some(n=>n.folder_id===f.id)&&<p className="folder-empty">メモをここにドロップ</p>}</div>}
+     {expanded.has(f.id) && <div className="folder-notes">{props.notes.filter(n=>n.folder_id===f.id).map(n=>card(n))}{!props.notes.some(n=>n.folder_id===f.id)&&<p className="folder-empty">メモをここにドロップ</p>}</div>}
    </section>)}
-   {props.notes.filter(n=>!n.folder_id || !props.folders.some(f=>f.id===n.folder_id)).map(card)}
+   {props.notes.filter(n=>!n.folder_id || !props.folders.some(f=>f.id===n.folder_id)).map(n=>card(n))}
    </>}
    {!props.notes.length && !props.folders.length && <div className="list-empty">まだメモはありません。<button onClick={()=>props.onAdd()} disabled={props.disabled}><Plus size={16}/>最初のメモを書く</button></div>}
  </nav>
