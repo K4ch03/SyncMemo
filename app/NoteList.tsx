@@ -113,12 +113,32 @@ export default function NoteList(props: Props) {
    onDrop:(e:React.DragEvent)=>{if(!dragId.current)return;e.preventDefault();destination.current=id;finish();},
  });
  const kanaMode=props.viewMode==="kana";
+ const folderExists=(id:string|null|undefined)=>!!id && props.folders.some(f=>f.id===id);
+ const kanaGroups=(items:Note[])=>groupByKana(items).map(([heading,notes])=><section key={heading} className="kana-section">
+   <h2>{heading}</h2>
+   {notes.map(card)}
+ </section>);
  return <>
  <nav ref={root} className="notes-list folder-list" aria-label="メモ一覧">
-   {kanaMode ? groupByKana(props.notes).map(([heading,items])=><section key={heading} className="kana-section">
-     <h2>{heading}</h2>
-     {items.map(card)}
-   </section>) : <>
+   {kanaMode ? <>
+   {[...props.folders].sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true})).map(f=>{
+     const items=props.notes.filter(n=>n.folder_id===f.id);
+     return <section key={f.id} style={colorOf(f)?{background:colorOf(f)!,color:foreground(colorOf(f)!)}:undefined} className={`folder-block kana-folder ${colorOf(f)?"has-folder-color":""} ${target===f.id?'drop-active':''}`} {...drop(f.id)}>
+       <div className="folder-row">
+         {props.editingFolderId===f.id ? <div className="folder-inline-wrap"><FolderIcon size={16}/><InlineFolderName name={f.name} onCommit={name=>props.onRename(f,name)} onCancel={props.onCancelRename}/></div> : <button className={`folder-toggle ${pressed===`folder:${f.id}`?'tap-pressed':''}`} aria-expanded="true" onPointerDown={e=>{if(!props.disabled && e.button===0)pulse(`folder:${f.id}`);}}>
+           <FolderIcon size={16}/><span>{f.name}</span>
+         </button>}
+         <button aria-label={`${f.name}にメモを追加`} disabled={props.disabled} onClick={()=>props.onAdd(f.id)}><Plus size={13}/></button>
+         <button data-folder-menu aria-label={`${f.name}のメニュー`} aria-expanded={menu===f.id} disabled={props.disabled} onClick={e=>{const r=e.currentTarget.getBoundingClientRect();setMenuPosition({left:Math.max(8,Math.min(r.right-264,window.innerWidth-272)),top:Math.max(8,Math.min(r.bottom+4,window.innerHeight-355))});setPreview(null);setMenu(menu===f.id?null:f.id);}}><MoreHorizontal size={15}/></button>
+       </div>
+       <div className="folder-notes">{items.length?kanaGroups(items):<p className="folder-empty">メモをここにドロップ</p>}</div>
+     </section>;
+   })}
+   {props.notes.some(n=>!folderExists(n.folder_id)) && <section className="folder-block kana-folder" {...drop('')}>
+     <div className="folder-row"><div className="folder-toggle folder-label"><FolderIcon size={16}/><span>フォルダ外</span></div></div>
+     <div className="folder-notes">{kanaGroups(props.notes.filter(n=>!folderExists(n.folder_id)))}</div>
+   </section>}
+   </> : <>
    {(props.folders.length>0 || drag) && <button {...drop('')} className={`root-drop ${target===''?'drop-active':''}`} onClick={()=>{if(dragId.current){destination.current='';finish();}}}>フォルダ外</button>}
    {[...props.folders].sort((a,b)=>a.name.localeCompare(b.name,'ja',{numeric:true})).map(f=><section key={f.id} style={colorOf(f)?{background:colorOf(f)!,color:foreground(colorOf(f)!)}:undefined} className={`folder-block ${colorOf(f)?"has-folder-color":""} ${target===f.id?'drop-active':''}`} {...drop(f.id)}>
      <div className="folder-row">
